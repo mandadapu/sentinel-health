@@ -32,11 +32,19 @@ services:
     build: ./sidecar
     ports:
       - "8081:8081"
+    command: >
+      uvicorn src.main:app --host 0.0.0.0 --port 8081
+      --ssl-keyfile /certs/server-key.pem
+      --ssl-certfile /certs/server.pem
     environment:
       SIDECAR_ENV: dev
       SIDECAR_PII_SCANNER_BACKEND: python
+      SIDECAR_MTLS_ENABLED: "true"
+      SIDECAR_MTLS_CA_PATH: /certs/ca.pem
+    volumes:
+      - ./certs:/certs:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('https://localhost:8081/health', context=__import__('ssl').create_default_context(cafile='/certs/ca.pem'))"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -48,15 +56,36 @@ services:
       - "8080:8080"
     environment:
       ENV: dev
-      SIDECAR_URL: http://sidecar:8081
+      SIDECAR_URL: https://sidecar:8081
+      SIDECAR_MTLS_ENABLED: "true"
+      SIDECAR_CLIENT_CERT: /certs/client.pem
+      SIDECAR_CLIENT_KEY: /certs/client-key.pem
+      SIDECAR_CA_CERT: /certs/ca.pem
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       FIRESTORE_EMULATOR_HOST: firestore-emulator:8086
+    volumes:
+      - ./certs:/certs:ro
     depends_on:
       sidecar:
         condition: service_healthy
       postgres:
         condition: service_started
+      pubsub-emulator:
+        condition: service_started
+      firestore-emulator:
+        condition: service_started
+
+  approval-worker:
+    build: ./approval-worker
+    ports:
+      - "8082:8080"
+    environment:
+      ENV: dev
+      GCP_PROJECT_ID: sentinel-health-dev
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      FIRESTORE_EMULATOR_HOST: firestore-emulator:8086
+    depends_on:
       pubsub-emulator:
         condition: service_started
       firestore-emulator:

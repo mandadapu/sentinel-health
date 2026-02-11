@@ -1,8 +1,8 @@
 .PHONY: tf-validate tf-plan tf-fmt tf-init tf-lint \
        dev-up dev-down build \
-       test backend-test sidecar-test frontend-test \
-       lint backend-lint sidecar-lint \
-       typecheck
+       test backend-test sidecar-test frontend-test worker-test \
+       lint backend-lint sidecar-lint worker-lint \
+       typecheck gen-certs
 
 ENV ?= dev
 TF_DIR = infra/environments/$(ENV)
@@ -26,7 +26,7 @@ tf-lint:
 
 # ── Testing ──────────────────────────────────────────────────────────────────
 
-test: backend-test sidecar-test frontend-test
+test: backend-test sidecar-test frontend-test worker-test
 
 backend-test:
 	cd backend && .venv/bin/python -m pytest tests/ -v
@@ -37,15 +37,21 @@ sidecar-test:
 frontend-test:
 	cd frontend && npx vitest run
 
+worker-test:
+	cd approval-worker && .venv/bin/python -m pytest tests/ -v
+
 # ── Linting ──────────────────────────────────────────────────────────────────
 
-lint: tf-fmt backend-lint sidecar-lint
+lint: tf-fmt backend-lint sidecar-lint worker-lint
 
 backend-lint:
 	cd backend && .venv/bin/python -m ruff check src/ tests/
 
 sidecar-lint:
 	cd sidecar && .venv/bin/python -m ruff check src/ tests/
+
+worker-lint:
+	cd approval-worker && .venv/bin/python -m ruff check src/ tests/
 
 # ── Type Checking ────────────────────────────────────────────────────────────
 
@@ -62,3 +68,8 @@ dev-up:
 
 dev-down:
 	docker-compose down
+
+# ── Certificates ──────────────────────────────────────────────────────────
+
+gen-certs:
+	bash certs/generate-dev-certs.sh

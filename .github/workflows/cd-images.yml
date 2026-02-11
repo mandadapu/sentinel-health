@@ -25,6 +25,8 @@ jobs:
             context: ./sidecar
           - service: frontend
             context: ./frontend
+          - service: approval-worker
+            context: ./approval-worker
 
     steps:
       - uses: actions/checkout@v4

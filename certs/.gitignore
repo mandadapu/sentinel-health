@@ -1,0 +1,4 @@
+# Generated certificates — never commit
+*.pem
+*.csr
+*.srl

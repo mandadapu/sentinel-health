@@ -15,8 +15,11 @@ class SidecarSettings(BaseSettings):
     # PII detection backend: "auto", "rust", or "python"
     pii_scanner_backend: str = "auto"
 
-    # mTLS (placeholder — not implemented in Prompt 3)
+    # mTLS
     mtls_enabled: bool = False
+    mtls_cert_path: str = ""
+    mtls_key_path: str = ""
+    mtls_ca_path: str = ""
 
     # FHIR schema directory
     fhir_schema_dir: str = "schemas"

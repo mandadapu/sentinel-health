@@ -10,6 +10,10 @@ class Settings(BaseSettings):
 
     # Sidecar
     sidecar_url: str = "http://localhost:8081"
+    sidecar_mtls_enabled: bool = False
+    sidecar_client_cert: str = ""
+    sidecar_client_key: str = ""
+    sidecar_ca_cert: str = ""
 
     # Anthropic
     anthropic_api_key: str = ""

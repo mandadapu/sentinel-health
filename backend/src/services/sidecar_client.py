@@ -1,4 +1,5 @@
 import logging
+import ssl
 from typing import Any
 
 import httpx
@@ -24,9 +25,20 @@ class SidecarValidationResult:
 class SidecarClient:
     def __init__(self, settings: Settings) -> None:
         self._base_url = settings.sidecar_url
+        verify: ssl.SSLContext | bool = True
+
+        if settings.sidecar_mtls_enabled:
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.load_cert_chain(
+                settings.sidecar_client_cert, settings.sidecar_client_key
+            )
+            ctx.load_verify_locations(settings.sidecar_ca_cert)
+            verify = ctx
+
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             timeout=httpx.Timeout(5.0, connect=2.0),
+            verify=verify,
         )
 
     async def validate(
