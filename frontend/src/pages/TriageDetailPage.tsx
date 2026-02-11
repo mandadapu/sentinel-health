@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTriageSessions } from "@/hooks/useTriageSessions";
 import { useAuditTrail } from "@/hooks/useAuditTrail";
@@ -14,6 +15,7 @@ export function TriageDetailPage() {
   const { user } = useAuthContext();
   const { sessions, updateApproval } = useTriageSessions();
   const { entries: auditEntries, loading: auditLoading } = useAuditTrail(id);
+  const [notes, setNotes] = useState("");
 
   const session = sessions.find((s) => s.encounter_id === id);
 
@@ -31,8 +33,9 @@ export function TriageDetailPage() {
   async function handleApproval(status: "approved" | "rejected") {
     if (!id || !user?.email) return;
     try {
-      await updateApproval(id, status, user.email);
+      await updateApproval(id, status, user.email, notes);
       toast(`Encounter ${status}`, "success");
+      setNotes("");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Update failed", "error");
     }
@@ -55,19 +58,28 @@ export function TriageDetailPage() {
         <div className="flex items-center gap-3">
           <StatusBadge status={session.status} />
           {session.status === "pending" && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => void handleApproval("approved")}
-                className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => void handleApproval("rejected")}
-                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-              >
-                Reject
-              </button>
+            <div className="space-y-2">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Reviewer notes (optional)"
+                className="w-64 rounded-md border border-border px-3 py-2 text-sm"
+                rows={2}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => void handleApproval("approved")}
+                  className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => void handleApproval("rejected")}
+                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                >
+                  Reject
+                </button>
+              </div>
             </div>
           )}
         </div>

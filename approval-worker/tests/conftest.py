@@ -10,6 +10,7 @@ def mock_firestore():
     store = AsyncMock(spec=ApprovalFirestore)
     store.write_approval_entry.return_value = "approval_queue/enc-001"
     store.update_approval_status.return_value = None
+    store.update_triage_session_status.return_value = None
     store.get_approval.return_value = {
         "encounter_id": "enc-001",
         "patient_id": "pat-001",

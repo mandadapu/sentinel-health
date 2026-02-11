@@ -9,6 +9,7 @@ class WorkerSettings(BaseSettings):
 
     # Firestore
     firestore_collection: str = "approval_queue"
+    triage_sessions_collection: str = "triage_sessions"
 
     model_config = {"env_prefix": "", "case_sensitive": False}
 

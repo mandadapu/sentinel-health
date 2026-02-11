@@ -4,11 +4,10 @@ import {
   onSnapshot,
   orderBy,
   query,
-  doc,
-  updateDoc,
   type Timestamp,
 } from "firebase/firestore";
 import { db } from "@/services/firebase";
+import { apiPost } from "@/services/api";
 import type { ApprovalStatus, TriageSession } from "@/types/triage";
 
 function parseTimestamp(ts: Timestamp | string | undefined): string {
@@ -56,13 +55,13 @@ export function useTriageSessions(collectionName = "triage_sessions") {
     encounterId: string,
     status: ApprovalStatus,
     reviewerEmail: string,
+    notes: string = "",
   ) {
-    const ref = doc(db, collectionName, encounterId);
-    await updateDoc(ref, {
+    await apiPost("/api/approve", {
+      encounter_id: encounterId,
       status,
-      reviewed_by: reviewerEmail,
-      reviewed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      reviewer_id: reviewerEmail,
+      notes,
     });
   }
 

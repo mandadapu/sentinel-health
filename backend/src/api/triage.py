@@ -66,7 +66,7 @@ async def run_triage(request: TriageRequest) -> TriageResultResponse:
     await _firestore.write_session(
         request.encounter_id,
         {
-            "status": "completed",
+            "status": "pending",
             "triage_level": triage.get("level", "Unknown"),
             "circuit_breaker_tripped": result.get("circuit_breaker_tripped", False),
             "updated_at": datetime.now(timezone.utc).isoformat(),

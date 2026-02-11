@@ -10,6 +10,7 @@ class ApprovalFirestore:
     def __init__(self, settings: WorkerSettings) -> None:
         self._client = AsyncClient(project=settings.gcp_project_id)
         self._collection = settings.firestore_collection
+        self._triage_collection = settings.triage_sessions_collection
 
     async def write_approval_entry(
         self, encounter_id: str, data: dict[str, Any]
@@ -40,6 +41,25 @@ class ApprovalFirestore:
         doc_ref = self._client.collection(self._collection).document(encounter_id)
         doc = await doc_ref.get()
         return doc.to_dict() if doc.exists else None
+
+    async def update_triage_session_status(
+        self,
+        encounter_id: str,
+        status: str,
+        reviewer_id: str,
+        notes: str,
+    ) -> None:
+        """Update the triage_sessions collection so the frontend dashboard reflects approval status."""
+        doc_ref = self._client.collection(self._triage_collection).document(encounter_id)
+        await doc_ref.update(
+            {
+                "status": status,
+                "reviewed_by": reviewer_id,
+                "reviewer_notes": notes,
+                "reviewed_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     async def close(self) -> None:
         self._client.close()

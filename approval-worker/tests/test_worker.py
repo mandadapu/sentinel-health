@@ -126,6 +126,9 @@ class TestApproveEndpoint:
         mock_firestore.update_approval_status.assert_called_once_with(
             "enc-001", "approved", "dr-smith", "Looks correct"
         )
+        mock_firestore.update_triage_session_status.assert_called_once_with(
+            "enc-001", "approved", "dr-smith", "Looks correct"
+        )
         mock_pubsub.publish_triage_approved.assert_called_once()
         approved_event = mock_pubsub.publish_triage_approved.call_args[0][0]
         assert approved_event["encounter_id"] == "enc-001"
@@ -144,6 +147,9 @@ class TestApproveEndpoint:
         assert response.status_code == 200
 
         mock_firestore.update_approval_status.assert_called_once_with(
+            "enc-001", "rejected", "dr-smith", "Triage level too low"
+        )
+        mock_firestore.update_triage_session_status.assert_called_once_with(
             "enc-001", "rejected", "dr-smith", "Triage level too low"
         )
         mock_pubsub.publish_triage_approved.assert_not_called()

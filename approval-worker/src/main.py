@@ -101,6 +101,14 @@ async def approve_triage(request: ApprovalRequest):
         request.notes,
     )
 
+    # Update triage_sessions so the frontend dashboard reflects approval status
+    await firestore.update_triage_session_status(
+        request.encounter_id,
+        request.status,
+        request.reviewer_id,
+        request.notes,
+    )
+
     if request.status == "approved":
         await pubsub.publish_triage_approved(
             {
