@@ -1,0 +1,17 @@
+[
+  {"name": "encounter_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique encounter identifier"},
+  {"name": "node_name", "type": "STRING", "mode": "REQUIRED", "description": "Pipeline node: extractor, reasoner, sentinel"},
+  {"name": "model_used", "type": "STRING", "mode": "REQUIRED", "description": "Claude model ID used for this node"},
+  {"name": "routing_category", "type": "STRING", "mode": "NULLABLE", "description": "Clinical routing category from classifier"},
+  {"name": "routing_confidence", "type": "FLOAT64", "mode": "NULLABLE", "description": "Classifier confidence score"},
+  {"name": "input_tokens", "type": "INT64", "mode": "NULLABLE", "description": "Input token count"},
+  {"name": "output_tokens", "type": "INT64", "mode": "NULLABLE", "description": "Output token count"},
+  {"name": "cost_usd", "type": "FLOAT64", "mode": "NULLABLE", "description": "Estimated cost in USD"},
+  {"name": "reasoning_snapshot", "type": "JSON", "mode": "NULLABLE", "description": "Full agent reasoning for audit"},
+  {"name": "compliance_flags", "type": "STRING", "mode": "REPEATED", "description": "Compliance flags: PII_REDACTED, FHIR_VALID, etc."},
+  {"name": "sentinel_hallucination_score", "type": "FLOAT64", "mode": "NULLABLE", "description": "Hallucination score from Sentinel check"},
+  {"name": "sentinel_confidence_score", "type": "FLOAT64", "mode": "NULLABLE", "description": "Clinical confidence score from Sentinel"},
+  {"name": "circuit_breaker_tripped", "type": "BOOL", "mode": "NULLABLE", "description": "Whether circuit breaker was triggered"},
+  {"name": "duration_ms", "type": "INT64", "mode": "NULLABLE", "description": "Node execution duration in milliseconds"},
+  {"name": "created_at", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "Timestamp of audit record creation"}
+]

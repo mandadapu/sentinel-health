@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_DB: sentinel_health
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: localdev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:latest
+    command: >
+      gcloud beta emulators pubsub start
+      --host-port=0.0.0.0:8085
+      --project=sentinel-health-dev
+    ports:
+      - "8085:8085"
+
+  firestore-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:latest
+    command: >
+      gcloud emulators firestore start
+      --host-port=0.0.0.0:8086
+      --project=sentinel-health-dev
+    ports:
+      - "8086:8086"
+
+volumes:
+  pgdata:

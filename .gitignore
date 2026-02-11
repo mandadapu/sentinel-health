@@ -1,0 +1,58 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars.json
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.egg
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Rust
+sidecar/rust/target/
+
+# Node / React
+node_modules/
+frontend/dist/
+frontend/build/
+.next/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets — NEVER commit these
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+service-account*.json
+
+# Docker
+docker-compose.override.yml
