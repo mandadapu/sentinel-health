@@ -1,7 +1,7 @@
 .PHONY: tf-validate tf-plan tf-fmt tf-init tf-lint \
        dev-up dev-down build \
-       test backend-test sidecar-test frontend-test worker-test \
-       lint backend-lint sidecar-lint worker-lint \
+       test backend-test sidecar-test frontend-test worker-test consumer-test \
+       lint backend-lint sidecar-lint worker-lint consumer-lint \
        typecheck gen-certs
 
 ENV ?= dev
@@ -26,7 +26,7 @@ tf-lint:
 
 # ── Testing ──────────────────────────────────────────────────────────────────
 
-test: backend-test sidecar-test frontend-test worker-test
+test: backend-test sidecar-test frontend-test worker-test consumer-test
 
 backend-test:
 	cd backend && .venv/bin/python -m pytest tests/ -v
@@ -40,9 +40,12 @@ frontend-test:
 worker-test:
 	cd approval-worker && .venv/bin/python -m pytest tests/ -v
 
+consumer-test:
+	cd audit-consumer && .venv/bin/python -m pytest tests/ -v
+
 # ── Linting ──────────────────────────────────────────────────────────────────
 
-lint: tf-fmt backend-lint sidecar-lint worker-lint
+lint: tf-fmt backend-lint sidecar-lint worker-lint consumer-lint
 
 backend-lint:
 	cd backend && .venv/bin/python -m ruff check src/ tests/
@@ -52,6 +55,9 @@ sidecar-lint:
 
 worker-lint:
 	cd approval-worker && .venv/bin/python -m ruff check src/ tests/
+
+consumer-lint:
+	cd audit-consumer && .venv/bin/python -m ruff check src/ tests/
 
 # ── Type Checking ────────────────────────────────────────────────────────────
 

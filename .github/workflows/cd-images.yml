@@ -27,6 +27,8 @@ jobs:
             context: ./frontend
           - service: approval-worker
             context: ./approval-worker
+          - service: audit-consumer
+            context: ./audit-consumer
 
     steps:
       - uses: actions/checkout@v4

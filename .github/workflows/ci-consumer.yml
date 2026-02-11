@@ -1,0 +1,29 @@
+name: CI — Audit Consumer
+
+on:
+  pull_request:
+    paths:
+      - "audit-consumer/**"
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: audit-consumer
+        run: pip install ".[dev]"
+
+      - name: Lint
+        working-directory: audit-consumer
+        run: ruff check src/ tests/
+
+      - name: Test
+        working-directory: audit-consumer
+        run: python -m pytest tests/ -v

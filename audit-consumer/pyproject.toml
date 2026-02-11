@@ -1,0 +1,27 @@
+[project]
+name = "sentinel-health-audit-consumer"
+version = "0.1.0"
+description = "Sentinel-Health Audit Consumer — streams audit events from Pub/Sub to BigQuery"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "google-cloud-bigquery>=3.25.0",
+    "google-cloud-pubsub>=2.27.0",
+    "pydantic-settings>=2.6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.27.0",
+    "ruff>=0.8.0",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
