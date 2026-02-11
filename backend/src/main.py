@@ -12,6 +12,7 @@ from src.routing.router import ModelRouter
 from src.services.anthropic_client import AnthropicClient
 from src.services.firestore import FirestoreService
 from src.services.pubsub import PubSubService
+from src.services.protocol_store import ProtocolStore
 from src.services.sidecar_client import SidecarClient
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,16 @@ async def lifespan(app: FastAPI):
     sidecar_client = SidecarClient(settings)
     audit_writer = AuditWriter(firestore, pubsub, sidecar_client)
 
+    # Initialize RAG (optional — requires Cloud SQL)
+    protocol_store: ProtocolStore | None = None
+    if settings.cloudsql_dsn:
+        protocol_store = ProtocolStore(settings.cloudsql_dsn)
+        try:
+            await protocol_store.connect()
+        except Exception:
+            logger.warning("Cloud SQL not available — RAG disabled", exc_info=True)
+            protocol_store = None
+
     # Initialize routing
     classifier = ClinicalClassifier(
         anthropic_client, settings.default_classifier_model
@@ -43,6 +54,7 @@ async def lifespan(app: FastAPI):
         router=router,
         settings=settings,
         sidecar_client=sidecar_client,
+        protocol_store=protocol_store,
     )
 
     # Wire dependencies into API modules
@@ -53,6 +65,8 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup
+    if protocol_store:
+        await protocol_store.close()
     await sidecar_client.close()
     await firestore.close()
     logger.info("Sentinel-Health orchestrator shut down")

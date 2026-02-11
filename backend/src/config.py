@@ -17,8 +17,11 @@ class Settings(BaseSettings):
     # Firestore
     firestore_collection: str = "triage_sessions"
 
-    # Cloud SQL
+    # Cloud SQL / RAG
     cloudsql_instance: str = ""
+    cloudsql_dsn: str = ""  # e.g. postgresql://sentinel:pass@localhost:5432/sentinel_health
+    rag_top_k: int = 5
+    embedding_model: str = "voyage-3"
 
     # Model configuration
     default_classifier_model: str = "claude-haiku-4-5-20241022"
