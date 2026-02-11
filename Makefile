@@ -1,9 +1,14 @@
-.PHONY: tf-validate tf-plan tf-fmt tf-init dev-up dev-down lint
+.PHONY: tf-validate tf-plan tf-fmt tf-init tf-lint \
+       dev-up dev-down build \
+       test backend-test sidecar-test frontend-test \
+       lint backend-lint sidecar-lint \
+       typecheck
 
 ENV ?= dev
 TF_DIR = infra/environments/$(ENV)
 
-# Terraform
+# ── Terraform ────────────────────────────────────────────────────────────────
+
 tf-init:
 	cd $(TF_DIR) && terraform init -backend=false
 
@@ -19,13 +24,41 @@ tf-fmt:
 tf-lint:
 	cd $(TF_DIR) && tflint --init && tflint --recursive
 
-# Local dev
+# ── Testing ──────────────────────────────────────────────────────────────────
+
+test: backend-test sidecar-test frontend-test
+
+backend-test:
+	cd backend && .venv/bin/python -m pytest tests/ -v
+
+sidecar-test:
+	cd sidecar && .venv/bin/python -m pytest tests/ -v
+
+frontend-test:
+	cd frontend && npx vitest run
+
+# ── Linting ──────────────────────────────────────────────────────────────────
+
+lint: tf-fmt backend-lint sidecar-lint
+
+backend-lint:
+	cd backend && .venv/bin/python -m ruff check src/ tests/
+
+sidecar-lint:
+	cd sidecar && .venv/bin/python -m ruff check src/ tests/
+
+# ── Type Checking ────────────────────────────────────────────────────────────
+
+typecheck:
+	cd frontend && npx tsc --noEmit
+
+# ── Docker ───────────────────────────────────────────────────────────────────
+
+build:
+	docker-compose build
+
 dev-up:
 	docker-compose up -d
 
 dev-down:
 	docker-compose down
-
-# Linting
-lint: tf-fmt
-	@echo "Linting complete"

@@ -1,0 +1,48 @@
+name: Build & Push Images
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: us-central1-docker.pkg.dev
+  PROJECT_ID: sentinel-health-dev
+  REPOSITORY: sentinel-health
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    strategy:
+      matrix:
+        include:
+          - service: backend
+            context: ./backend
+          - service: sidecar
+            context: ./sidecar
+          - service: frontend
+            context: ./frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+      - name: Build and push
+        run: |
+          IMAGE=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ matrix.service }}
+          docker build -t ${IMAGE}:${{ github.sha }} -t ${IMAGE}:latest ${{ matrix.context }}
+          docker push ${IMAGE}:${{ github.sha }}
+          docker push ${IMAGE}:latest
