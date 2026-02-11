@@ -374,3 +374,108 @@ class TestFullPipeline:
         # Critical keyword → Opus
         assert result["routing_metadata"]["selected_model"] == "claude-opus-4-6-20250929"
         assert result["routing_metadata"]["safety_override"] is True
+
+
+class TestSidecarIntegration:
+    """Tests that verify sidecar client is called correctly when provided."""
+
+    @pytest.mark.asyncio
+    async def test_extractor_calls_sidecar_on_input_and_output(
+        self,
+        mock_anthropic,
+        mock_audit_writer,
+        mock_sidecar_client,
+        sample_extracted_data,
+    ):
+        mock_anthropic.complete.return_value = mock_anthropic._make_response(
+            sample_extracted_data
+        )
+        state = _build_base_state()
+        state["routing_metadata"] = {
+            "category": "symptom_assessment",
+            "classifier_confidence": 0.88,
+            "selected_model": "claude-sonnet-4-5-20250929",
+            "escalation_reason": None,
+            "safety_override": False,
+        }
+
+        result = await extractor_node(
+            state,
+            anthropic_client=mock_anthropic,
+            audit_writer=mock_audit_writer,
+            sidecar_client=mock_sidecar_client,
+        )
+
+        # Sidecar should be called twice: once for input, once for output
+        assert mock_sidecar_client.validate.call_count == 2
+        calls = mock_sidecar_client.validate.call_args_list
+        assert calls[0].kwargs["validation_type"] == "input"
+        assert calls[1].kwargs["validation_type"] == "output"
+        # Compliance flags from sidecar should be in result
+        assert "PII_CLEAN" in result["compliance_flags"]
+
+    @pytest.mark.asyncio
+    async def test_pipeline_with_sidecar(
+        self,
+        mock_anthropic,
+        mock_audit_writer,
+        mock_sidecar_client,
+        settings,
+        sample_extracted_data,
+        sample_triage_decision,
+        sample_sentinel_response,
+    ):
+        """Full pipeline with sidecar — sidecar called for each node input+output."""
+        classify_response = mock_anthropic._make_response(
+            {"category": "symptom_assessment", "confidence": 0.88, "reason": "Cough"}
+        )
+        extract_response = mock_anthropic._make_response(
+            sample_extracted_data, model="claude-sonnet-4-5-20250929"
+        )
+        reason_response = mock_anthropic._make_response(
+            sample_triage_decision, model="claude-sonnet-4-5-20250929"
+        )
+        sentinel_response = mock_anthropic._make_response(
+            sample_sentinel_response
+        )
+
+        mock_anthropic.complete.side_effect = [
+            classify_response,
+            extract_response,
+            reason_response,
+            sentinel_response,
+        ]
+
+        classifier = ClinicalClassifier(mock_anthropic, "claude-haiku-4-5-20241022")
+        router = ModelRouter(min_confidence=0.70)
+
+        pipeline = build_pipeline(
+            anthropic_client=mock_anthropic,
+            audit_writer=mock_audit_writer,
+            classifier=classifier,
+            router=router,
+            settings=settings,
+            sidecar_client=mock_sidecar_client,
+        )
+
+        initial_state = {
+            "raw_input": "45-year-old with cough",
+            "encounter_id": "enc-sidecar-001",
+            "patient_id": "pat-001",
+            "audit_trail": [],
+            "compliance_flags": [],
+            "circuit_breaker_tripped": False,
+            "error": None,
+        }
+
+        result = await pipeline.ainvoke(initial_state)
+
+        # Pipeline should complete successfully
+        assert result["triage_decision"]["level"] == "Semi-Urgent"
+        assert result["sentinel_check"]["passed"] is True
+
+        # Sidecar should be called 6 times for nodes (input+output × 3)
+        # plus audit writer calls (2 per node × 3 nodes = 6)
+        # Total = 12, but audit_writer is mocked so those don't hit sidecar
+        # Only node-level calls: 3 nodes × 2 = 6
+        assert mock_sidecar_client.validate.call_count == 6

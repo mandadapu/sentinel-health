@@ -1,8 +1,10 @@
 FROM rust:1.83-slim AS rust-builder
 
+RUN pip install maturin
+
 WORKDIR /rust
 COPY rust/ .
-RUN cargo build --release
+RUN maturin build --release --out /rust/dist
 
 FROM python:3.12-slim AS base
 
@@ -11,8 +13,11 @@ WORKDIR /app
 COPY pyproject.toml .
 RUN pip install --no-cache-dir .
 
-COPY --from=rust-builder /rust/target/release/*.so /app/lib/
+COPY --from=rust-builder /rust/dist/*.whl /tmp/
+RUN pip install /tmp/*.whl && rm /tmp/*.whl
+
 COPY src/ src/
+COPY schemas/ schemas/
 
 EXPOSE 8081
 

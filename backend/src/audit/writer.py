@@ -1,20 +1,29 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from src.services.firestore import FirestoreService
 from src.services.pubsub import PubSubService
+
+if TYPE_CHECKING:
+    from src.services.sidecar_client import SidecarClient
 
 logger = logging.getLogger(__name__)
 
 
 class AuditWriter:
     def __init__(
-        self, firestore: FirestoreService, pubsub: PubSubService
+        self,
+        firestore: FirestoreService,
+        pubsub: PubSubService,
+        sidecar_client: SidecarClient | None = None,
     ) -> None:
         self._firestore = firestore
         self._pubsub = pubsub
+        self._sidecar = sidecar_client
 
     async def write_node_audit(
         self,
@@ -31,6 +40,26 @@ class AuditWriter:
         duration_ms: int,
     ) -> str:
         timestamp = datetime.now(timezone.utc).isoformat()
+
+        # PHI strip input_summary and output_summary before persistence
+        if self._sidecar:
+            input_strip = await self._sidecar.validate(
+                content=input_summary,
+                node_name=node_name,
+                encounter_id=encounter_id,
+                validation_type="audit",
+            )
+            input_summary = input_strip.content
+            compliance_flags = list(compliance_flags) + input_strip.compliance_flags
+
+            output_strip = await self._sidecar.validate(
+                content=output_summary,
+                node_name=node_name,
+                encounter_id=encounter_id,
+                validation_type="audit",
+            )
+            output_summary = output_strip.content
+            compliance_flags = compliance_flags + output_strip.compliance_flags
 
         audit_doc = {
             "encounter_id": encounter_id,

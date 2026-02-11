@@ -139,3 +139,31 @@ def sample_sentinel_response():
         "medication_safe": True,
         "issues_found": [],
     }
+
+
+@pytest.fixture
+def mock_sidecar_client():
+    """SidecarClient mock that returns pass-through validation results."""
+    from src.services.sidecar_client import SidecarValidationResult
+
+    client = AsyncMock()
+
+    def _make_result(content: str = "", flags: list[str] | None = None):
+        return SidecarValidationResult(
+            {
+                "validated": True,
+                "content": content,
+                "compliance_flags": flags or ["PII_CLEAN"],
+                "redactions": [],
+                "errors": [],
+                "should_retry": False,
+                "latency_ms": 1.0,
+            }
+        )
+
+    client._make_result = _make_result
+    # Default: return pass-through result with the content from the call
+    client.validate = AsyncMock(
+        side_effect=lambda content, **kwargs: _make_result(content)
+    )
+    return client

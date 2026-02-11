@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReasonerOutput",
+  "description": "Triage reasoning decision output",
+  "type": "object",
+  "required": ["level", "confidence", "reasoning_summary"],
+  "properties": {
+    "level": {
+      "type": "string",
+      "enum": ["Emergency", "Urgent", "Semi-Urgent", "Non-Urgent"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "reasoning_summary": { "type": "string", "minLength": 1 },
+    "recommended_actions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "key_findings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

@@ -5,6 +5,7 @@ from typing import Any
 from src.audit.writer import AuditWriter
 from src.graph.state import AgentState, TriageDecision
 from src.services.anthropic_client import AnthropicClient
+from src.services.sidecar_client import SidecarClient
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +29,15 @@ Respond with JSON:
 
 Be conservative: when in doubt, escalate to a higher triage level."""
 
+MAX_RETRIES = 2
+
 
 async def reasoner_node(
     state: AgentState,
     *,
     anthropic_client: AnthropicClient,
     audit_writer: AuditWriter,
+    sidecar_client: SidecarClient | None = None,
 ) -> dict[str, Any]:
     """Produce triage decision from extracted clinical data."""
     model = state["routing_metadata"]["selected_model"]
@@ -50,14 +54,60 @@ async def reasoner_node(
         f"{rag_section}"
     )
 
-    # --- Sidecar hook (Layer 1 placeholder for Prompt 3) ---
+    # --- Sidecar: validate input (PII scan) ---
+    compliance_flags: list[str] = list(state.get("compliance_flags", []))
     validated_input = user_message
 
-    response = await anthropic_client.complete(
-        model=model,
-        system_prompt=REASONER_SYSTEM_PROMPT,
-        user_message=validated_input,
-    )
+    if sidecar_client:
+        input_result = await sidecar_client.validate(
+            content=user_message,
+            node_name="reasoner",
+            encounter_id=encounter_id,
+            validation_type="input",
+        )
+        validated_input = input_result.content
+        compliance_flags.extend(input_result.compliance_flags)
+
+    # LLM call with retry on FHIR validation failure
+    response = None
+    decision = None
+
+    for attempt in range(1 + MAX_RETRIES):
+        response = await anthropic_client.complete(
+            model=model,
+            system_prompt=REASONER_SYSTEM_PROMPT,
+            user_message=validated_input,
+        )
+
+        # --- Sidecar: validate output (PII + FHIR + token guard) ---
+        if sidecar_client:
+            output_result = await sidecar_client.validate(
+                content=response["content"],
+                node_name="reasoner",
+                encounter_id=encounter_id,
+                validation_type="output",
+                tokens=response["tokens"],
+            )
+            compliance_flags.extend(output_result.compliance_flags)
+
+            if output_result.should_retry and attempt < MAX_RETRIES:
+                logger.warning(
+                    "FHIR validation failed for reasoner (attempt %d/%d): %s",
+                    attempt + 1,
+                    MAX_RETRIES,
+                    output_result.errors,
+                )
+                continue
+
+            if not output_result.validated and attempt == MAX_RETRIES:
+                compliance_flags.append("FHIR_RETRY_EXHAUSTED")
+                logger.error(
+                    "FHIR validation failed after %d retries for reasoner: %s",
+                    MAX_RETRIES,
+                    output_result.errors,
+                )
+
+        break
 
     decision = json.loads(response["content"])
 
@@ -85,13 +135,14 @@ async def reasoner_node(
         output_summary=json.dumps(decision)[:500],
         tokens=response["tokens"],
         cost_usd=response["cost_usd"],
-        compliance_flags=state.get("compliance_flags", []),
+        compliance_flags=compliance_flags,
         sentinel_check=None,
         duration_ms=response["duration_ms"],
     )
 
     return {
         "triage_decision": triage_decision,
+        "compliance_flags": compliance_flags,
         "audit_trail": state.get("audit_trail", [])
         + [
             {

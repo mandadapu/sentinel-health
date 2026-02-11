@@ -11,6 +11,7 @@ from src.graph.state import AgentState
 from src.routing.classifier import ClinicalClassifier
 from src.routing.router import ModelRouter
 from src.services.anthropic_client import AnthropicClient
+from src.services.sidecar_client import SidecarClient
 
 
 def build_pipeline(
@@ -19,6 +20,7 @@ def build_pipeline(
     classifier: ClinicalClassifier,
     router: ModelRouter,
     settings: Settings,
+    sidecar_client: SidecarClient | None = None,
 ):
     """Build and compile the LangGraph triage pipeline."""
 
@@ -26,17 +28,20 @@ def build_pipeline(
         extractor_node,
         anthropic_client=anthropic_client,
         audit_writer=audit_writer,
+        sidecar_client=sidecar_client,
     )
     bound_reasoner = functools.partial(
         reasoner_node,
         anthropic_client=anthropic_client,
         audit_writer=audit_writer,
+        sidecar_client=sidecar_client,
     )
     bound_sentinel = functools.partial(
         sentinel_node,
         anthropic_client=anthropic_client,
         audit_writer=audit_writer,
         settings=settings,
+        sidecar_client=sidecar_client,
     )
 
     async def classify_and_route(state: AgentState) -> dict:

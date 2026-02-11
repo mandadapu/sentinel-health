@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ExtractorOutput",
+  "description": "Clinical data extraction output — FHIR-aligned structure",
+  "type": "object",
+  "required": ["vitals", "symptoms", "medications", "history", "chief_complaint"],
+  "properties": {
+    "vitals": {
+      "type": "object",
+      "properties": {
+        "heart_rate": { "type": ["number", "null"] },
+        "blood_pressure": { "type": ["string", "null"] },
+        "temperature": { "type": ["number", "null"] },
+        "respiratory_rate": { "type": ["number", "null"] },
+        "spo2": { "type": ["number", "null"] }
+      },
+      "required": ["heart_rate", "blood_pressure", "temperature", "respiratory_rate", "spo2"]
+    },
+    "symptoms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["description"],
+        "properties": {
+          "description": { "type": "string" },
+          "onset": { "type": ["string", "null"] },
+          "severity": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "medications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "dose": { "type": ["string", "null"] },
+          "frequency": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "history": {
+      "type": "object",
+      "properties": {
+        "conditions": { "type": "array", "items": { "type": "string" } },
+        "allergies": { "type": "array", "items": { "type": "string" } },
+        "surgeries": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["conditions", "allergies", "surgeries"]
+    },
+    "chief_complaint": { "type": ["string", "null"] },
+    "assessment_notes": { "type": ["string", "null"] }
+  }
+}

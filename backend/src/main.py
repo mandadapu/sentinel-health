@@ -12,6 +12,7 @@ from src.routing.router import ModelRouter
 from src.services.anthropic_client import AnthropicClient
 from src.services.firestore import FirestoreService
 from src.services.pubsub import PubSubService
+from src.services.sidecar_client import SidecarClient
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,8 @@ async def lifespan(app: FastAPI):
     anthropic_client = AnthropicClient(settings)
     firestore = FirestoreService(settings)
     pubsub = PubSubService(settings)
-    audit_writer = AuditWriter(firestore, pubsub)
+    sidecar_client = SidecarClient(settings)
+    audit_writer = AuditWriter(firestore, pubsub, sidecar_client)
 
     # Initialize routing
     classifier = ClinicalClassifier(
@@ -40,6 +42,7 @@ async def lifespan(app: FastAPI):
         classifier=classifier,
         router=router,
         settings=settings,
+        sidecar_client=sidecar_client,
     )
 
     # Wire dependencies into API modules
@@ -50,6 +53,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup
+    await sidecar_client.close()
     await firestore.close()
     logger.info("Sentinel-Health orchestrator shut down")
 
