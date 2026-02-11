@@ -208,6 +208,87 @@ resource "google_cloud_run_v2_service" "approval_worker" {
   labels = local.labels
 }
 
+# Audit Consumer — single container, Pub/Sub triggered
+resource "google_cloud_run_v2_service" "audit_consumer" {
+  name     = "${local.name_prefix}-audit-consumer"
+  location = var.region
+  project  = var.project_id
+
+  template {
+    service_account = var.audit_consumer_sa_email
+    timeout         = "60s"
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 5
+    }
+
+    vpc_access {
+      connector = var.vpc_connector_id
+      egress    = "ALL_TRAFFIC"
+    }
+
+    containers {
+      name  = "audit-consumer"
+      image = var.audit_consumer_image
+
+      ports {
+        container_port = 8080
+      }
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "512Mi"
+        }
+      }
+
+      env {
+        name  = "ENV"
+        value = var.env
+      }
+
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
+      }
+
+      startup_probe {
+        http_get {
+          path = "/health"
+          port = 8080
+        }
+        initial_delay_seconds = 5
+        period_seconds        = 10
+        failure_threshold     = 3
+      }
+    }
+  }
+
+  labels = local.labels
+}
+
+# Grant Pub/Sub service agent permission to invoke workers
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
+resource "google_cloud_run_v2_service_iam_member" "pubsub_invoker_approval_worker" {
+  name     = google_cloud_run_v2_service.approval_worker.name
+  location = var.region
+  project  = var.project_id
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "pubsub_invoker_audit_consumer" {
+  name     = google_cloud_run_v2_service.audit_consumer.name
+  location = var.region
+  project  = var.project_id
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
 # Allow unauthenticated access to orchestrator (fronted by load balancer in prod)
 resource "google_cloud_run_v2_service_iam_member" "orchestrator_invoker" {
   name     = google_cloud_run_v2_service.orchestrator.name

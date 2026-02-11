@@ -124,8 +124,11 @@ module "pubsub" {
   project_id               = var.project_id
   env                      = var.env
   approval_worker_sa_email = module.iam.approval_worker_sa_email
+  audit_consumer_sa_email  = module.iam.audit_consumer_sa_email
+  approval_worker_url      = module.cloud_run.approval_worker_url
+  audit_consumer_url       = module.cloud_run.audit_consumer_url
 
-  depends_on = [module.iam]
+  depends_on = [module.iam, module.cloud_run]
 }
 
 # ---------------------------------------------------------------------------
@@ -167,6 +170,7 @@ module "cloud_run" {
   vpc_connector_id             = module.networking.vpc_connector_id
   orchestrator_sa_email        = module.iam.orchestrator_sa_email
   approval_worker_sa_email     = module.iam.approval_worker_sa_email
+  audit_consumer_sa_email      = module.iam.audit_consumer_sa_email
   cloudsql_instance_connection = module.cloud_sql.instance_connection_name
 
   depends_on = [

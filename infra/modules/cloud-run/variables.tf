@@ -28,6 +28,11 @@ variable "approval_worker_sa_email" {
   type        = string
 }
 
+variable "audit_consumer_sa_email" {
+  description = "Audit consumer service account email"
+  type        = string
+}
+
 variable "cloudsql_instance_connection" {
   description = "Cloud SQL instance connection name for Cloud SQL Auth Proxy"
   type        = string
@@ -47,6 +52,12 @@ variable "sidecar_image" {
 
 variable "approval_worker_image" {
   description = "Container image for the approval worker"
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "audit_consumer_image" {
+  description = "Container image for the audit consumer"
   type        = string
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }

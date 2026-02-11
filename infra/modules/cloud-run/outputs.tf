@@ -17,3 +17,13 @@ output "approval_worker_name" {
   description = "Name of the approval worker Cloud Run service"
   value       = google_cloud_run_v2_service.approval_worker.name
 }
+
+output "audit_consumer_url" {
+  description = "URL of the audit consumer Cloud Run service"
+  value       = google_cloud_run_v2_service.audit_consumer.uri
+}
+
+output "audit_consumer_name" {
+  description = "Name of the audit consumer Cloud Run service"
+  value       = google_cloud_run_v2_service.audit_consumer.name
+}

@@ -12,6 +12,20 @@ locals {
     "audit-events",
     "triage-approved",
   ])
+
+  # Push config per topic — only triage-completed and audit-events get push
+  push_configs = {
+    "triage-completed" = {
+      push_endpoint       = "${var.approval_worker_url}/push/triage-completed"
+      oidc_token_sa       = var.approval_worker_sa_email
+      oidc_token_audience = var.approval_worker_url
+    }
+    "audit-events" = {
+      push_endpoint       = "${var.audit_consumer_url}/push/audit-event"
+      oidc_token_sa       = var.audit_consumer_sa_email
+      oidc_token_audience = var.audit_consumer_url
+    }
+  }
 }
 
 # Main topics
@@ -55,6 +69,24 @@ resource "google_pubsub_subscription" "main" {
   expiration_policy {
     ttl = "" # Never expire
   }
+
+  # Push config with OIDC auth — only for topics that have a consumer
+  dynamic "push_config" {
+    for_each = contains(keys(local.push_configs), each.value) ? [local.push_configs[each.value]] : []
+
+    content {
+      push_endpoint = push_config.value.push_endpoint
+
+      oidc_token {
+        service_account_email = push_config.value.oidc_token_sa
+        audience              = push_config.value.oidc_token_audience
+      }
+
+      attributes = {
+        x-goog-version = "v1"
+      }
+    }
+  }
 }
 
 # DLQ subscriptions (for monitoring/manual processing)
@@ -85,12 +117,20 @@ resource "google_pubsub_topic_iam_member" "dlq_publisher" {
   project = var.project_id
 }
 
-# Grant subscriber permissions to approval worker SA
+# Grant subscriber permissions — approval worker on triage-completed + triage-approved
 resource "google_pubsub_subscription_iam_member" "approval_worker_subscriber" {
-  for_each = local.topics
+  for_each = toset(["triage-completed", "triage-approved"])
 
   subscription = google_pubsub_subscription.main[each.value].id
   role         = "roles/pubsub.subscriber"
   member       = "serviceAccount:${var.approval_worker_sa_email}"
+  project      = var.project_id
+}
+
+# Grant subscriber permissions — audit consumer on audit-events
+resource "google_pubsub_subscription_iam_member" "audit_consumer_subscriber" {
+  subscription = google_pubsub_subscription.main["audit-events"].id
+  role         = "roles/pubsub.subscriber"
+  member       = "serviceAccount:${var.audit_consumer_sa_email}"
   project      = var.project_id
 }

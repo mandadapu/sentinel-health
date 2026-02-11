@@ -14,6 +14,12 @@ resource "google_service_account" "approval_worker_sa" {
   display_name = "Sentinel Approval Worker (${var.env})"
 }
 
+resource "google_service_account" "audit_consumer_sa" {
+  project      = var.project_id
+  account_id   = "sentinel-${var.env}-audit-consumer"
+  display_name = "Sentinel Audit Consumer (${var.env})"
+}
+
 ###############################################################################
 # IAM Role Bindings
 ###############################################################################
@@ -34,6 +40,11 @@ locals {
     "roles/cloudsql.client",     # Cloud SQL
     "roles/bigquery.dataEditor", # BigQuery audit writes
   ]
+
+  audit_consumer_roles = [
+    "roles/bigquery.dataEditor", # BigQuery audit writes
+    "roles/pubsub.subscriber",   # subscribe to audit-events
+  ]
 }
 
 resource "google_project_iam_member" "orchestrator_bindings" {
@@ -50,4 +61,12 @@ resource "google_project_iam_member" "approval_worker_bindings" {
   project = var.project_id
   role    = each.value
   member  = "serviceAccount:${google_service_account.approval_worker_sa.email}"
+}
+
+resource "google_project_iam_member" "audit_consumer_bindings" {
+  for_each = toset(local.audit_consumer_roles)
+
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.audit_consumer_sa.email}"
 }
