@@ -3,9 +3,10 @@ import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 
+from src.middleware.rate_limit import limiter, STREAM_RATE_LIMIT
 from src.services.firestore import FirestoreService
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,8 @@ def set_dependencies(firestore: FirestoreService | None) -> None:
 
 
 @router.get("/stream/triage-results")
-async def stream_triage_results() -> EventSourceResponse:
+@limiter.limit(STREAM_RATE_LIMIT)
+async def stream_triage_results(request: Request) -> EventSourceResponse:
     """SSE stream of triage session changes via Firestore watch."""
 
     async def event_generator():

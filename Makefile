@@ -3,8 +3,9 @@
        test backend-test sidecar-test frontend-test worker-test consumer-test \
        lint backend-lint sidecar-lint worker-lint consumer-lint \
        typecheck gen-certs \
-       db-init db-reset \
-       load-test load-test-ui
+       db-init db-reset db-migrate db-migrate-check db-history \
+       load-test load-test-ui \
+       generate-embeddings
 
 ENV ?= dev
 TF_DIR = infra/environments/$(ENV)
@@ -82,7 +83,18 @@ dev-down:
 gen-certs:
 	bash certs/generate-dev-certs.sh
 
-# ── Database ─────────────────────────────────────────────────────────────
+# ── Database Migrations ──────────────────────────────────────────────────
+
+db-migrate:
+	cd backend && .venv/bin/alembic upgrade head
+
+db-migrate-check:
+	cd backend && .venv/bin/alembic check
+
+db-history:
+	cd backend && .venv/bin/alembic history
+
+# ── Database (legacy — use db-migrate for production) ────────────────────
 
 db-init:
 	cat backend/sql/*.sql | docker-compose exec -T postgres psql -U sentinel sentinel_health
@@ -98,3 +110,9 @@ load-test:
 
 load-test-ui:
 	cd load-tests && .venv/bin/locust -f locustfile.py
+
+# ── Embeddings ───────────────────────────────────────────────────────────
+
+generate-embeddings:
+	cd backend && VOYAGE_API_KEY=$(VOYAGE_API_KEY) .venv/bin/python -m scripts.generate_embeddings \
+		--dsn postgresql://sentinel:localdev@localhost:5432/sentinel_health

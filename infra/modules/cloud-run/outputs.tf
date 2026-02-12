@@ -27,3 +27,13 @@ output "audit_consumer_name" {
   description = "Name of the audit consumer Cloud Run service"
   value       = google_cloud_run_v2_service.audit_consumer.name
 }
+
+output "frontend_url" {
+  description = "URL of the frontend Cloud Run service"
+  value       = google_cloud_run_v2_service.frontend.uri
+}
+
+output "frontend_name" {
+  description = "Name of the frontend Cloud Run service"
+  value       = google_cloud_run_v2_service.frontend.name
+}

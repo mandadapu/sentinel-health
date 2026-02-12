@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from src.graph.state import AgentState
+from src.middleware.rate_limit import limiter, TRIAGE_RATE_LIMIT
 from src.models import TriageRequest, TriageResultResponse
 
 router = APIRouter(prefix="/api")
@@ -21,15 +22,16 @@ def set_dependencies(pipeline, audit_writer, firestore) -> None:
 
 
 @router.post("/triage", response_model=TriageResultResponse)
-async def run_triage(request: TriageRequest) -> TriageResultResponse:
+@limiter.limit(TRIAGE_RATE_LIMIT)
+async def run_triage(request: Request, body: TriageRequest) -> TriageResultResponse:
     """Run the full triage pipeline on an encounter."""
     if _pipeline is None:
         raise HTTPException(status_code=503, detail="Pipeline not initialized")
 
     initial_state: AgentState = {
-        "raw_input": request.encounter_text,
-        "encounter_id": request.encounter_id,
-        "patient_id": request.patient_id,
+        "raw_input": body.encounter_text,
+        "encounter_id": body.encounter_id,
+        "patient_id": body.patient_id,
         "audit_trail": [],
         "compliance_flags": [],
         "circuit_breaker_tripped": False,
@@ -45,8 +47,8 @@ async def run_triage(request: TriageRequest) -> TriageResultResponse:
 
     # Publish TriageCompleted event to Pub/Sub
     await _audit_writer.publish_triage_completed(
-        encounter_id=request.encounter_id,
-        patient_id=request.patient_id,
+        encounter_id=body.encounter_id,
+        patient_id=body.patient_id,
         triage_result={
             "level": triage.get("level", "Unknown"),
             "confidence": triage.get("confidence", 0.0),
@@ -64,7 +66,7 @@ async def run_triage(request: TriageRequest) -> TriageResultResponse:
 
     # Write session status to Firestore
     await _firestore.write_session(
-        request.encounter_id,
+        body.encounter_id,
         {
             "status": "pending",
             "triage_level": triage.get("level", "Unknown"),
@@ -74,8 +76,8 @@ async def run_triage(request: TriageRequest) -> TriageResultResponse:
     )
 
     return TriageResultResponse(
-        encounter_id=request.encounter_id,
-        patient_id=request.patient_id,
+        encounter_id=body.encounter_id,
+        patient_id=body.patient_id,
         triage_level=triage.get("level", "Unknown"),
         confidence=triage.get("confidence", 0.0),
         reasoning_summary=triage.get("reasoning_summary", ""),

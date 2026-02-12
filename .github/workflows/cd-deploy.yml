@@ -1,0 +1,111 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["Build & Push Images"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - prod
+
+env:
+  REGISTRY: us-central1-docker.pkg.dev
+  REPOSITORY: sentinel-health
+
+jobs:
+  deploy-staging:
+    if: >
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform Init
+        run: terraform -chdir=infra/environments/staging init
+
+      - name: Terraform Plan
+        run: terraform -chdir=infra/environments/staging plan -var-file=terraform.tfvars -out=plan.tfplan
+
+      - name: Terraform Apply
+        run: terraform -chdir=infra/environments/staging apply plan.tfplan
+
+      - name: Run Alembic Migrations
+        run: |
+          echo "::group::Database migrations"
+          # Migrations run via Cloud SQL Auth Proxy in a Cloud Run Job
+          # or directly from the deployed service's startup
+          echo "Alembic migrations will be applied by the orchestrator on startup"
+          echo "::endgroup::"
+
+      - name: Verify Deployment
+        run: |
+          ORCHESTRATOR_URL=$(terraform -chdir=infra/environments/staging output -raw orchestrator_url)
+          curl --retry 5 --retry-delay 10 --fail "${ORCHESTRATOR_URL}/health"
+
+  deploy-prod:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    environment: production  # Requires manual approval via GitHub Environment protection rules
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform Init
+        run: terraform -chdir=infra/environments/prod init
+
+      - name: Terraform Plan
+        run: terraform -chdir=infra/environments/prod plan -var-file=terraform.tfvars -out=plan.tfplan
+
+      - name: Terraform Apply
+        run: terraform -chdir=infra/environments/prod apply plan.tfplan
+
+      - name: Run Alembic Migrations
+        run: |
+          echo "::group::Database migrations"
+          echo "Alembic migrations will be applied by the orchestrator on startup"
+          echo "::endgroup::"
+
+      - name: Verify Deployment
+        run: |
+          ORCHESTRATOR_URL=$(terraform -chdir=infra/environments/prod output -raw orchestrator_url)
+          curl --retry 5 --retry-delay 10 --fail "${ORCHESTRATOR_URL}/health"

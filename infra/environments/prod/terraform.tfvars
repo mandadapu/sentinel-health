@@ -1,0 +1,5 @@
+project_id         = "sentinel-health-prod"
+project_number     = "000000000000"
+region             = "us-central1"
+env                = "prod"
+notification_email = "sentinel-alerts-prod@sentinel-health.example.com"

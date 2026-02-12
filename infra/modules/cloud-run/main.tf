@@ -19,8 +19,8 @@ resource "google_cloud_run_v2_service" "orchestrator" {
     timeout         = "300s"
 
     scaling {
-      min_instance_count = 0
-      max_instance_count = 10
+      min_instance_count = var.orchestrator_min_instances
+      max_instance_count = var.orchestrator_max_instances
     }
 
     vpc_access {
@@ -84,6 +84,31 @@ resource "google_cloud_run_v2_service" "orchestrator" {
       env {
         name  = "EMBEDDING_FALLBACK_MODEL"
         value = "text-embedding-004"
+      }
+
+      env {
+        name  = "DEFAULT_CLASSIFIER_MODEL"
+        value = var.classifier_model
+      }
+
+      env {
+        name  = "SENTINEL_MODEL"
+        value = var.sentinel_model
+      }
+
+      env {
+        name  = "HALLUCINATION_THRESHOLD"
+        value = var.hallucination_threshold
+      }
+
+      env {
+        name  = "CONFIDENCE_THRESHOLD"
+        value = var.confidence_threshold
+      }
+
+      env {
+        name  = "CORS_ALLOWED_ORIGINS"
+        value = var.cors_allowed_origins
       }
 
       env {
@@ -167,8 +192,8 @@ resource "google_cloud_run_v2_service" "approval_worker" {
     timeout         = "60s"
 
     scaling {
-      min_instance_count = 0
-      max_instance_count = 5
+      min_instance_count = var.worker_min_instances
+      max_instance_count = var.worker_max_instances
     }
 
     vpc_access {
@@ -213,6 +238,11 @@ resource "google_cloud_run_v2_service" "approval_worker" {
         value = var.cloudsql_instance_connection
       }
 
+      env {
+        name  = "CORS_ALLOWED_ORIGINS"
+        value = var.cors_allowed_origins
+      }
+
       volume_mounts {
         name       = "cloudsql"
         mount_path = "/cloudsql"
@@ -244,8 +274,8 @@ resource "google_cloud_run_v2_service" "audit_consumer" {
     timeout         = "60s"
 
     scaling {
-      min_instance_count = 0
-      max_instance_count = 5
+      min_instance_count = var.worker_min_instances
+      max_instance_count = var.worker_max_instances
     }
 
     vpc_access {
@@ -293,6 +323,48 @@ resource "google_cloud_run_v2_service" "audit_consumer" {
   labels = local.labels
 }
 
+# Frontend — nginx serving React SPA
+resource "google_cloud_run_v2_service" "frontend" {
+  name     = "${local.name_prefix}-frontend"
+  location = var.region
+  project  = var.project_id
+
+  template {
+    scaling {
+      min_instance_count = var.worker_min_instances
+      max_instance_count = var.worker_max_instances
+    }
+
+    containers {
+      name  = "frontend"
+      image = var.frontend_image
+
+      ports {
+        container_port = 3000
+      }
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "256Mi"
+        }
+      }
+
+      startup_probe {
+        http_get {
+          path = "/"
+          port = 3000
+        }
+        initial_delay_seconds = 3
+        period_seconds        = 5
+        failure_threshold     = 3
+      }
+    }
+  }
+
+  labels = local.labels
+}
+
 # Grant Pub/Sub service agent permission to invoke workers
 data "google_project" "current" {
   project_id = var.project_id
@@ -317,6 +389,15 @@ resource "google_cloud_run_v2_service_iam_member" "pubsub_invoker_audit_consumer
 # Allow unauthenticated access to orchestrator (fronted by load balancer in prod)
 resource "google_cloud_run_v2_service_iam_member" "orchestrator_invoker" {
   name     = google_cloud_run_v2_service.orchestrator.name
+  location = var.region
+  project  = var.project_id
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+# Allow unauthenticated access to frontend
+resource "google_cloud_run_v2_service_iam_member" "frontend_invoker" {
+  name     = google_cloud_run_v2_service.frontend.name
   location = var.region
   project  = var.project_id
   role     = "roles/run.invoker"

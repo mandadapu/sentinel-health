@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     # Routing
     min_routing_confidence: float = 0.70
 
+    # CORS
+    cors_allowed_origins: str = "http://localhost:3000"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
+
     @property
     def pubsub_audit_topic(self) -> str:
         return f"sentinel-{self.env}-audit-events"

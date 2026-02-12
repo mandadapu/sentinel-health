@@ -2,12 +2,16 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from src.api import health, stream, triage
 from src.audit.writer import AuditWriter
 from src.config import get_settings
 from src.logging_config import configure_logging
 from src.graph.pipeline import build_pipeline
+from src.middleware.rate_limit import limiter
 from src.routing.classifier import ClinicalClassifier
 from src.routing.router import ModelRouter
 from src.services.anthropic_client import AnthropicClient
@@ -92,6 +96,21 @@ app = FastAPI(
     title="Sentinel-Health Orchestrator",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS
+_settings = get_settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
 )
 
 app.include_router(health.router)
