@@ -24,3 +24,8 @@ variable "env" {
     error_message = "env must be one of: dev, staging, prod"
   }
 }
+
+variable "notification_email" {
+  description = "Email address for Cloud Monitoring alert notifications"
+  type        = string
+}
