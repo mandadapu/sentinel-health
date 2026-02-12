@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from src.api import health, stream, triage
 from src.audit.writer import AuditWriter
 from src.config import get_settings
+from src.logging_config import configure_logging
 from src.graph.pipeline import build_pipeline
 from src.routing.classifier import ClinicalClassifier
 from src.routing.router import ModelRouter
@@ -14,6 +15,7 @@ from src.services.embedding_service import EmbeddingService
 from src.services.firestore import FirestoreService
 from src.services.pubsub import PubSubService
 from src.services.protocol_store import ProtocolStore
+from src.services.metrics import init_metrics
 from src.services.sidecar_client import SidecarClient
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Initialize services at startup, clean up at shutdown."""
     settings = get_settings()
+    configure_logging("orchestrator", settings.env)
+    init_metrics(settings.gcp_project_id)
 
     # Initialize services
     anthropic_client = AnthropicClient(settings)

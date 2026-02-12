@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from src.config import get_settings
+from src.logging_config import configure_logging
 from src.models import Redaction, ValidationRequest, ValidationResponse
 from src.validators.fhir_validator import FHIRValidator
 from src.validators.phi_stripper import PHIStripper
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    configure_logging("sidecar", settings.env)
     app.state.pii_scanner = PIIScanner(backend=settings.pii_scanner_backend)
     app.state.fhir_validator = FHIRValidator(schema_dir=settings.fhir_schema_dir)
     app.state.phi_stripper = PHIStripper()

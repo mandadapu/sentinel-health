@@ -8,17 +8,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 
 from src.config import get_settings
+from src.logging_config import configure_logging
 from src.models import PushEnvelope
 from src.services.bigquery import AuditBigQuery
 from src.transform import transform_audit_event
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     settings = get_settings()
+    configure_logging("audit-consumer", settings.env)
     bq = AuditBigQuery(settings)
     application.state.bigquery = bq
     await bq.start_periodic_flush()

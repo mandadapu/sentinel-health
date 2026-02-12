@@ -1,0 +1,127 @@
+[
+  {
+    "encounter_text": "42-year-old male presents with persistent dry cough for 5 days, low-grade fever of 37.8C, mild fatigue. No dyspnea at rest. SpO2 97% on room air. HR 82, BP 128/78. No significant past medical history. Non-smoker.",
+    "patient_id": "pat-load-001",
+    "category": "respiratory"
+  },
+  {
+    "encounter_text": "67-year-old female with sudden onset crushing substernal chest pain radiating to left arm, diaphoresis, nausea. Onset 45 minutes ago. History of HTN, hyperlipidemia, DM2. Current vitals: HR 110, BP 158/92, SpO2 94%. ECG shows ST elevation in leads II, III, aVF.",
+    "patient_id": "pat-load-002",
+    "category": "cardiac_critical"
+  },
+  {
+    "encounter_text": "28-year-old female, 32 weeks pregnant, presents with severe headache, visual disturbances (scotomata), and RUQ abdominal pain. BP 168/108. Proteinuria on dipstick. No vaginal bleeding. Fetal heart tones present and reactive.",
+    "patient_id": "pat-load-003",
+    "category": "obstetric"
+  },
+  {
+    "encounter_text": "55-year-old male presents with acute onset right-sided weakness and slurred speech. Wife reports symptoms started approximately 2 hours ago. NIHSS score 12. HR 88, BP 172/96, glucose 142. History of atrial fibrillation, not on anticoagulation.",
+    "patient_id": "pat-load-004",
+    "category": "neurological_critical"
+  },
+  {
+    "encounter_text": "8-month-old infant brought in by parents for fever of 39.2C for 12 hours, irritability, decreased oral intake. No rash. Immunizations up to date. Moist mucous membranes, anterior fontanelle flat. No source identified on exam.",
+    "patient_id": "pat-load-005",
+    "category": "pediatric"
+  },
+  {
+    "encounter_text": "35-year-old male involved in high-speed MVC, unrestrained driver. Complaining of chest and abdominal pain. GCS 14 (confused). HR 120, BP 90/60, RR 24, SpO2 92%. Seat belt sign across abdomen. Diminished breath sounds on left.",
+    "patient_id": "pat-load-006",
+    "category": "trauma"
+  },
+  {
+    "encounter_text": "22-year-old female found unresponsive by roommate. Empty bottle of acetaminophen nearby, estimated 30 tablets of 500mg. Unknown time of ingestion. GCS 12. HR 98, BP 100/68, RR 18. Last known normal 8 hours ago.",
+    "patient_id": "pat-load-007",
+    "category": "toxicology"
+  },
+  {
+    "encounter_text": "45-year-old male brought in by police on involuntary psychiatric hold. Expressing active command auditory hallucinations telling him to harm family members. Agitated, pacing. History of schizophrenia, non-compliant with medications for 3 weeks. Vitals stable.",
+    "patient_id": "pat-load-008",
+    "category": "psychiatric"
+  },
+  {
+    "encounter_text": "72-year-old female from nursing home with fever 39.5C, altered mental status, tachycardia HR 118, BP 88/52, RR 26. Known UTI treated with oral antibiotics 3 days ago with no improvement. Lactate 3.8 on POC testing. WBC 18,000.",
+    "patient_id": "pat-load-009",
+    "category": "sepsis"
+  },
+  {
+    "encounter_text": "30-year-old male with known asthma presents with severe wheezing, speaks in single words only. Using accessory muscles. SpO2 89% on room air. PEF 35% of predicted. Has used albuterol inhaler 8 times today without relief. HR 135, RR 32.",
+    "patient_id": "pat-load-010",
+    "category": "respiratory_critical"
+  },
+  {
+    "encounter_text": "58-year-old male with type 1 diabetes presents with nausea, vomiting, abdominal pain, and rapid breathing. Blood glucose 420 mg/dL. pH 7.18 on VBG. Serum bicarbonate 10. Moderate ketonuria. HR 112, BP 108/68, RR 28 (Kussmaul pattern).",
+    "patient_id": "pat-load-011",
+    "category": "metabolic"
+  },
+  {
+    "encounter_text": "4-year-old male with 3 days of diarrhea (8-10 watery stools per day) and vomiting. Parents report decreased urine output over last 12 hours. Dry mucous membranes, tenting skin turgor, tachycardia HR 140, capillary refill 3 seconds. Weight down 7% from last visit.",
+    "patient_id": "pat-load-012",
+    "category": "pediatric_dehydration"
+  },
+  {
+    "encounter_text": "62-year-old female presents with 2-day history of productive cough with green sputum, fever 38.5C, and mild dyspnea on exertion. SpO2 95% on room air. History of COPD. HR 90, BP 135/82. Using home oxygen at night but not currently.",
+    "patient_id": "pat-load-013",
+    "category": "respiratory"
+  },
+  {
+    "encounter_text": "48-year-old male presents with intermittent palpitations and lightheadedness for 2 days. No chest pain or syncope. HR irregular at 130, BP 118/72, SpO2 98%. ECG shows atrial fibrillation with rapid ventricular response. No prior cardiac history.",
+    "patient_id": "pat-load-014",
+    "category": "cardiac"
+  },
+  {
+    "encounter_text": "19-year-old female presents with right lower quadrant abdominal pain for 6 hours, worsening with movement. Low-grade fever 37.9C. Last menstrual period 2 weeks ago. Positive McBurney point tenderness, positive Rovsing sign. WBC 14,000.",
+    "patient_id": "pat-load-015",
+    "category": "surgical"
+  },
+  {
+    "encounter_text": "75-year-old male with hypertension presents for routine BP check. Home readings averaging 155/92 over past week despite taking amlodipine 10mg daily. No headache, vision changes, or chest pain. Current BP in office 152/88.",
+    "patient_id": "pat-load-016",
+    "category": "routine_hypertension"
+  },
+  {
+    "encounter_text": "38-year-old healthcare worker presents for TB screening after coworker diagnosed with active pulmonary TB. Asymptomatic, no cough, no fever, no weight loss. Vitals normal. PPD placed 48 hours ago shows 12mm induration.",
+    "patient_id": "pat-load-017",
+    "category": "infectious_screening"
+  },
+  {
+    "encounter_text": "50-year-old male presents with acute onset severe headache described as worst of his life, nuchal rigidity, photophobia. No history of migraines. Onset during exercise 1 hour ago. HR 96, BP 180/100, GCS 15. No focal neurological deficits.",
+    "patient_id": "pat-load-018",
+    "category": "neurological_critical"
+  },
+  {
+    "encounter_text": "26-year-old female presents with anxiety, requesting medication refill for sertraline 50mg. Reports stable mood over past month, sleeping well, good appetite. No suicidal or homicidal ideation. PHQ-9 score 6 (mild). Vitals normal.",
+    "patient_id": "pat-load-019",
+    "category": "psychiatric_routine"
+  },
+  {
+    "encounter_text": "40-year-old male found by EMS in park, obtunded, pinpoint pupils, respiratory rate 6, SpO2 78%. Track marks on bilateral antecubital fossae. Responded to 2mg naloxone IM with improved mental status and respiratory rate. HR 68, BP 100/60.",
+    "patient_id": "pat-load-020",
+    "category": "toxicology_critical"
+  },
+  {
+    "encounter_text": "33-year-old female, G2P1, 38 weeks gestation, presents with regular contractions every 4 minutes, duration 60 seconds, for past 2 hours. Membranes intact. Cervical exam: 5cm dilated, 80% effaced, -1 station. Fetal heart rate 140, reactive. No vaginal bleeding.",
+    "patient_id": "pat-load-021",
+    "category": "obstetric_labor"
+  },
+  {
+    "encounter_text": "65-year-old male with chronic back pain presents requesting opioid prescription renewal. Takes oxycodone 10mg QID. Reports pain level 7/10 despite current regimen. No red flag symptoms. Neurological exam intact. PDMP shows consistent filling pattern.",
+    "patient_id": "pat-load-022",
+    "category": "pain_management"
+  },
+  {
+    "encounter_text": "14-year-old female brought in by school nurse after disclosing suicidal ideation to a teacher. Reports passive thoughts of wanting to die but denies plan or intent. History of bullying at school. No prior psychiatric history. Parents en route.",
+    "patient_id": "pat-load-023",
+    "category": "psychiatric_pediatric"
+  },
+  {
+    "encounter_text": "78-year-old female presents after mechanical fall at home, tripping over rug. Right hip pain, unable to bear weight. Externally rotated and shortened right lower extremity. HR 92, BP 142/78, SpO2 96%. On warfarin for atrial fibrillation, INR last checked 2.8.",
+    "patient_id": "pat-load-024",
+    "category": "trauma_geriatric"
+  },
+  {
+    "encounter_text": "52-year-old male presents with 3-day history of progressive swelling and redness of left lower leg. Fever 38.3C. Area of erythema 12x8cm with well-demarcated borders, warm to touch. No fluctuance. History of diabetes, HbA1c 8.2%. WBC 13,500.",
+    "patient_id": "pat-load-025",
+    "category": "infectious_cellulitis"
+  }
+]

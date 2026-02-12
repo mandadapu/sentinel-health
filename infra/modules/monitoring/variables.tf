@@ -22,3 +22,9 @@ variable "cloud_run_service_names" {
   description = "Map of Cloud Run service logical names to their deployed names"
   type        = map(string)
 }
+
+variable "llm_daily_cost_threshold" {
+  description = "Daily LLM cost threshold in USD that triggers an alert"
+  type        = number
+  default     = 50.0
+}

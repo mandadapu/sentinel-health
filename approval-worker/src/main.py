@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
 
 from src.config import get_settings
+from src.logging_config import configure_logging
 from src.models import ApprovalRequest, ApprovalResponse, HealthResponse, PushEnvelope
 from src.services.firestore import ApprovalFirestore
 from src.services.pubsub import ApprovalPubSub
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    configure_logging("approval-worker", settings.env)
     app.state.firestore = ApprovalFirestore(settings)
     app.state.pubsub = ApprovalPubSub(settings)
     logger.info("Approval worker started (env=%s)", settings.env)
