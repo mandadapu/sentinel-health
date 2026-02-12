@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from src.services.firestore import FirestoreService
+from src.services.metrics import record_llm_usage
 from src.services.pubsub import PubSubService
 
 if TYPE_CHECKING:
@@ -79,6 +80,27 @@ class AuditWriter:
         # Sync write to Firestore
         doc_path = await self._firestore.write_audit(
             encounter_id, node_name, audit_doc
+        )
+
+        logger.info(
+            "Node audit written",
+            extra={
+                "encounter_id": encounter_id,
+                "node_name": node_name,
+                "model": model,
+                "input_tokens": tokens.get("in", 0),
+                "output_tokens": tokens.get("out", 0),
+                "cost_usd": cost_usd,
+                "duration_ms": duration_ms,
+            },
+        )
+
+        record_llm_usage(
+            model=model,
+            node_name=node_name,
+            input_tokens=tokens.get("in", 0),
+            output_tokens=tokens.get("out", 0),
+            cost_usd=cost_usd,
         )
 
         # Async fire-and-forget to Pub/Sub

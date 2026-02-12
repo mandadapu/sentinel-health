@@ -3,7 +3,8 @@
        test backend-test sidecar-test frontend-test worker-test consumer-test \
        lint backend-lint sidecar-lint worker-lint consumer-lint \
        typecheck gen-certs \
-       db-init db-reset
+       db-init db-reset \
+       load-test load-test-ui
 
 ENV ?= dev
 TF_DIR = infra/environments/$(ENV)
@@ -89,3 +90,11 @@ db-init:
 db-reset:
 	docker-compose exec postgres psql -U sentinel -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 	$(MAKE) db-init
+
+# ── Load Testing ────────────────────────────────────────────────────────
+
+load-test:
+	cd load-tests && .venv/bin/locust -f locustfile.py --headless -u 10 -r 2 -t 5m --csv results
+
+load-test-ui:
+	cd load-tests && .venv/bin/locust -f locustfile.py

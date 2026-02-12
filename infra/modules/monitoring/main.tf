@@ -242,6 +242,267 @@ resource "google_monitoring_alert_policy" "cloudsql_cpu" {
 }
 
 # ---------------------------------------------------------------------------
+# Custom metrics — LLM usage tracking
+# ---------------------------------------------------------------------------
+resource "google_monitoring_metric_descriptor" "llm_token_count" {
+  project      = var.project_id
+  type         = "custom.googleapis.com/sentinel/llm/token_count"
+  metric_kind  = "CUMULATIVE"
+  value_type   = "INT64"
+  display_name = "LLM Token Count"
+  description  = "Total tokens consumed by LLM calls"
+
+  labels {
+    key         = "model"
+    value_type  = "STRING"
+    description = "LLM model identifier"
+  }
+
+  labels {
+    key         = "node"
+    value_type  = "STRING"
+    description = "Pipeline node name"
+  }
+
+  labels {
+    key         = "token_type"
+    value_type  = "STRING"
+    description = "input or output"
+  }
+}
+
+resource "google_monitoring_metric_descriptor" "llm_cost_usd" {
+  project      = var.project_id
+  type         = "custom.googleapis.com/sentinel/llm/cost_usd"
+  metric_kind  = "CUMULATIVE"
+  value_type   = "DOUBLE"
+  display_name = "LLM Cost USD"
+  description  = "Cost in USD of LLM API calls"
+
+  labels {
+    key         = "model"
+    value_type  = "STRING"
+    description = "LLM model identifier"
+  }
+}
+
+resource "google_monitoring_metric_descriptor" "llm_request_count" {
+  project      = var.project_id
+  type         = "custom.googleapis.com/sentinel/llm/request_count"
+  metric_kind  = "CUMULATIVE"
+  value_type   = "INT64"
+  display_name = "LLM Request Count"
+  description  = "Number of LLM API requests"
+
+  labels {
+    key         = "model"
+    value_type  = "STRING"
+    description = "LLM model identifier"
+  }
+
+  labels {
+    key         = "node"
+    value_type  = "STRING"
+    description = "Pipeline node name"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Alert: LLM daily cost exceeds threshold
+# ---------------------------------------------------------------------------
+resource "google_monitoring_alert_policy" "llm_daily_cost" {
+  project      = var.project_id
+  display_name = "${local.name_prefix} LLM Daily Cost"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "LLM daily cost exceeds threshold"
+
+    condition_threshold {
+      filter          = "metric.type = \"custom.googleapis.com/sentinel/llm/cost_usd\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.llm_daily_cost_threshold
+      duration        = "0s"
+
+      aggregations {
+        alignment_period     = "86400s"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = [google_monitoring_notification_channel.email.id]
+
+  documentation {
+    content   = "LLM costs exceeded daily threshold of $${var.llm_daily_cost_threshold}. Check model routing distribution and token counts."
+    mime_type = "text/markdown"
+  }
+
+  alert_strategy {
+    auto_close = "86400s"
+  }
+
+  user_labels = local.labels
+}
+
+# ---------------------------------------------------------------------------
+# SLO — Orchestrator service
+# ---------------------------------------------------------------------------
+resource "google_monitoring_custom_service" "orchestrator" {
+  project      = var.project_id
+  service_id   = "${local.name_prefix}-orchestrator"
+  display_name = "${local.name_prefix} Orchestrator"
+}
+
+# SLO: 99.5% availability (30-day rolling window)
+resource "google_monitoring_slo" "orchestrator_availability" {
+  project      = var.project_id
+  service      = google_monitoring_custom_service.orchestrator.service_id
+  slo_id       = "${local.name_prefix}-availability"
+  display_name = "Orchestrator Availability"
+  goal         = 0.995
+
+  rolling_period_days = 30
+
+  request_based_sli {
+    good_total_ratio {
+      good_service_filter  = "resource.type = \"cloud_run_revision\" AND metric.type = \"run.googleapis.com/request_count\" AND resource.label.service_name = \"${var.cloud_run_service_names["orchestrator"]}\" AND metric.label.response_code_class = \"2xx\""
+      total_service_filter = "resource.type = \"cloud_run_revision\" AND metric.type = \"run.googleapis.com/request_count\" AND resource.label.service_name = \"${var.cloud_run_service_names["orchestrator"]}\""
+    }
+  }
+}
+
+# SLO: 95% of requests < 3s latency (30-day rolling window)
+resource "google_monitoring_slo" "orchestrator_latency" {
+  project      = var.project_id
+  service      = google_monitoring_custom_service.orchestrator.service_id
+  slo_id       = "${local.name_prefix}-latency"
+  display_name = "Orchestrator Latency"
+  goal         = 0.95
+
+  rolling_period_days = 30
+
+  request_based_sli {
+    distribution_cut {
+      distribution_filter = "resource.type = \"cloud_run_revision\" AND metric.type = \"run.googleapis.com/request_latencies\" AND resource.label.service_name = \"${var.cloud_run_service_names["orchestrator"]}\""
+
+      range {
+        max = 3000
+      }
+    }
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Alert: SLO burn-rate — availability
+# ---------------------------------------------------------------------------
+resource "google_monitoring_alert_policy" "slo_burn_rate_availability" {
+  project      = var.project_id
+  display_name = "${local.name_prefix} SLO Burn Rate - Availability"
+  combiner     = "AND"
+
+  conditions {
+    display_name = "Fast burn: 14.4x error budget consumption (1h)"
+
+    condition_threshold {
+      filter          = "select_slo_burn_rate(\"${google_monitoring_slo.orchestrator_availability.id}\", \"60m\")"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 14.4
+      duration        = "0s"
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  conditions {
+    display_name = "Slow burn: 6x error budget consumption (6h)"
+
+    condition_threshold {
+      filter          = "select_slo_burn_rate(\"${google_monitoring_slo.orchestrator_availability.id}\", \"360m\")"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 6
+      duration        = "0s"
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = [google_monitoring_notification_channel.email.id]
+
+  documentation {
+    content   = "SLO availability burn rate alert. The orchestrator is consuming error budget faster than sustainable. Investigate failing requests immediately."
+    mime_type = "text/markdown"
+  }
+
+  alert_strategy {
+    auto_close = "1800s"
+  }
+
+  user_labels = local.labels
+}
+
+# ---------------------------------------------------------------------------
+# Alert: SLO burn-rate — latency
+# ---------------------------------------------------------------------------
+resource "google_monitoring_alert_policy" "slo_burn_rate_latency" {
+  project      = var.project_id
+  display_name = "${local.name_prefix} SLO Burn Rate - Latency"
+  combiner     = "AND"
+
+  conditions {
+    display_name = "Fast burn: 14.4x latency budget consumption (1h)"
+
+    condition_threshold {
+      filter          = "select_slo_burn_rate(\"${google_monitoring_slo.orchestrator_latency.id}\", \"60m\")"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 14.4
+      duration        = "0s"
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  conditions {
+    display_name = "Slow burn: 6x latency budget consumption (6h)"
+
+    condition_threshold {
+      filter          = "select_slo_burn_rate(\"${google_monitoring_slo.orchestrator_latency.id}\", \"360m\")"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 6
+      duration        = "0s"
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = [google_monitoring_notification_channel.email.id]
+
+  documentation {
+    content   = "SLO latency burn rate alert. The orchestrator p95 latency is degrading faster than the budget allows. Check LLM response times and database performance."
+    mime_type = "text/markdown"
+  }
+
+  alert_strategy {
+    auto_close = "1800s"
+  }
+
+  user_labels = local.labels
+}
+
+# ---------------------------------------------------------------------------
 # Dashboard — operational overview
 # ---------------------------------------------------------------------------
 resource "google_monitoring_dashboard" "main" {
@@ -356,6 +617,62 @@ resource "google_monitoring_dashboard" "main" {
                 }
               }
               plotType = "LINE"
+            }]
+          }
+        },
+        {
+          title = "LLM Token Usage by Model"
+          xyChart = {
+            dataSets = [{
+              timeSeriesQuery = {
+                timeSeriesFilter = {
+                  filter = "metric.type = \"custom.googleapis.com/sentinel/llm/token_count\""
+                  aggregation = {
+                    alignmentPeriod    = "3600s"
+                    perSeriesAligner   = "ALIGN_DELTA"
+                    crossSeriesReducer = "REDUCE_SUM"
+                    groupByFields      = ["metric.label.model"]
+                  }
+                }
+              }
+              plotType = "STACKED_BAR"
+            }]
+          }
+        },
+        {
+          title = "LLM Cost per Day (USD)"
+          xyChart = {
+            dataSets = [{
+              timeSeriesQuery = {
+                timeSeriesFilter = {
+                  filter = "metric.type = \"custom.googleapis.com/sentinel/llm/cost_usd\""
+                  aggregation = {
+                    alignmentPeriod    = "86400s"
+                    perSeriesAligner   = "ALIGN_DELTA"
+                    crossSeriesReducer = "REDUCE_SUM"
+                  }
+                }
+              }
+              plotType = "LINE"
+            }]
+          }
+        },
+        {
+          title = "LLM Requests by Model"
+          xyChart = {
+            dataSets = [{
+              timeSeriesQuery = {
+                timeSeriesFilter = {
+                  filter = "metric.type = \"custom.googleapis.com/sentinel/llm/request_count\""
+                  aggregation = {
+                    alignmentPeriod    = "3600s"
+                    perSeriesAligner   = "ALIGN_DELTA"
+                    crossSeriesReducer = "REDUCE_SUM"
+                    groupByFields      = ["metric.label.model"]
+                  }
+                }
+              }
+              plotType = "STACKED_BAR"
             }]
           }
         }
