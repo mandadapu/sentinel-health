@@ -37,4 +37,4 @@ make dev-up         # docker-compose up (local dev)
 
 ## Discovery Doc
 
-Full architecture decisions and requirements in `../sentinel-health-discovery.md`
+Full architecture decisions and requirements in `docs/sentinel-health-discovery.md`
