@@ -60,3 +60,11 @@ output "secret_ids" {
   description = "Secret Manager secret IDs"
   value       = module.secrets.secret_ids
 }
+
+# ---------------------------------------------------------------------------
+# Monitoring
+# ---------------------------------------------------------------------------
+output "monitoring_dashboard_id" {
+  description = "Cloud Monitoring dashboard ID"
+  value       = module.monitoring.dashboard_id
+}

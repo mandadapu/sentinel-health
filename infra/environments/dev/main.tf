@@ -40,6 +40,7 @@ resource "google_project_service" "apis" {
     "servicenetworking.googleapis.com",
     "aiplatform.googleapis.com",
     "cloudbuild.googleapis.com",
+    "monitoring.googleapis.com",
   ])
 
   project            = var.project_id
@@ -179,4 +180,24 @@ module "cloud_run" {
     module.cloud_sql,
     module.secrets,
   ]
+}
+
+# ---------------------------------------------------------------------------
+# Monitoring — Alert policies + dashboard
+# ---------------------------------------------------------------------------
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  project_id         = var.project_id
+  region             = var.region
+  env                = var.env
+  notification_email = var.notification_email
+
+  cloud_run_service_names = {
+    orchestrator    = module.cloud_run.orchestrator_name
+    approval_worker = module.cloud_run.approval_worker_name
+    audit_consumer  = module.cloud_run.audit_consumer_name
+  }
+
+  depends_on = [module.cloud_run, module.pubsub, module.cloud_sql]
 }
