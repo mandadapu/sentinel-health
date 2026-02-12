@@ -71,6 +71,31 @@ resource "google_cloud_run_v2_service" "orchestrator" {
         value = var.cloudsql_instance_connection
       }
 
+      env {
+        name  = "EMBEDDING_MODEL"
+        value = "voyage-3"
+      }
+
+      env {
+        name  = "EMBEDDING_DIMENSION"
+        value = "1024"
+      }
+
+      env {
+        name  = "EMBEDDING_FALLBACK_MODEL"
+        value = "text-embedding-004"
+      }
+
+      env {
+        name = "VOYAGE_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = "voyage-api-key"
+            version = "latest"
+          }
+        }
+      }
+
       volume_mounts {
         name       = "cloudsql"
         mount_path = "/cloudsql"

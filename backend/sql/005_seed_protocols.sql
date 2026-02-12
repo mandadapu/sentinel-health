@@ -23,7 +23,7 @@ DISPOSITION GUIDELINES:
 - Admit: ESI 1-2, ESI 3 with worsening trajectory
 - Observe: ESI 3 with uncertain trajectory
 - Discharge: ESI 4-5 with clear follow-up plan',
-    (SELECT array_agg(0)::vector(1536) FROM generate_series(1, 1536)),
+    (SELECT array_agg(0)::vector(1024) FROM generate_series(1, 1024)),
     'hospital_curated',
     'emergency_medicine',
     '2024-01-01',
@@ -53,7 +53,7 @@ DISPOSITION:
 - NSTEMI: Cardiology consult, admit to telemetry
 - Intermediate risk: Observation unit, serial troponins
 - Low risk: Discharge with cardiology follow-up within 72 hours',
-    (SELECT array_agg(0)::vector(1536) FROM generate_series(1, 1536)),
+    (SELECT array_agg(0)::vector(1024) FROM generate_series(1, 1024)),
     'hospital_curated',
     'cardiology',
     '2024-01-01',
@@ -85,7 +85,7 @@ REASSESSMENT:
 - Repeat lactate at 2-4 hours if initial > 2
 - Reassess volume status and tissue perfusion
 - Document response to interventions',
-    (SELECT array_agg(0)::vector(1536) FROM generate_series(1, 1536)),
+    (SELECT array_agg(0)::vector(1024) FROM generate_series(1, 1024)),
     'hospital_curated',
     'emergency_medicine',
     '2024-01-01',

@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     cloudsql_dsn: str = ""  # e.g. postgresql://sentinel:pass@localhost:5432/sentinel_health
     rag_top_k: int = 5
     embedding_model: str = "voyage-3"
+    embedding_dimension: int = 1024
+    embedding_fallback_model: str = "text-embedding-004"
+    voyage_api_key: str = ""
+    vertex_ai_location: str = "us-central1"
 
     # Model configuration
     default_classifier_model: str = "claude-haiku-4-5-20241022"

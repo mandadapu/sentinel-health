@@ -1,9 +1,8 @@
-import json
 import logging
 from typing import Any
 
 from src.graph.state import AgentState
-from src.services.anthropic_client import AnthropicClient
+from src.services.embedding_service import EmbeddingService
 from src.services.protocol_store import ProtocolStore
 
 logger = logging.getLogger(__name__)
@@ -13,7 +12,7 @@ async def rag_retriever_node(
     state: AgentState,
     *,
     protocol_store: ProtocolStore | None = None,
-    anthropic_client: AnthropicClient | None = None,
+    embedding_service: EmbeddingService | None = None,
     top_k: int = 5,
 ) -> dict[str, Any]:
     """Retrieve similar clinical protocols to augment the reasoner's context.
@@ -21,8 +20,8 @@ async def rag_retriever_node(
     If protocol_store is None (Cloud SQL not configured), returns empty
     rag_context and the pipeline proceeds without RAG augmentation.
     """
-    if protocol_store is None or anthropic_client is None:
-        logger.debug("RAG retrieval skipped — protocol_store or anthropic_client not available")
+    if protocol_store is None or embedding_service is None:
+        logger.debug("RAG retrieval skipped — protocol_store or embedding_service not available")
         return {"rag_context": []}
 
     # Build query from extracted clinical data
@@ -38,7 +37,7 @@ async def rag_retriever_node(
 
     # Generate embedding
     try:
-        embedding = await anthropic_client.embed(query_text)
+        embedding = await embedding_service.embed(query_text)
     except Exception:
         logger.warning("Embedding generation failed — skipping RAG retrieval", exc_info=True)
         return {"rag_context": []}

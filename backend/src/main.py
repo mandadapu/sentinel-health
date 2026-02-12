@@ -10,6 +10,7 @@ from src.graph.pipeline import build_pipeline
 from src.routing.classifier import ClinicalClassifier
 from src.routing.router import ModelRouter
 from src.services.anthropic_client import AnthropicClient
+from src.services.embedding_service import EmbeddingService
 from src.services.firestore import FirestoreService
 from src.services.pubsub import PubSubService
 from src.services.protocol_store import ProtocolStore
@@ -40,6 +41,16 @@ async def lifespan(app: FastAPI):
             logger.warning("Cloud SQL not available — RAG disabled", exc_info=True)
             protocol_store = None
 
+    # Initialize embedding service (for RAG)
+    embedding_service: EmbeddingService | None = None
+    if settings.voyage_api_key or settings.gcp_project_id:
+        embedding_service = EmbeddingService(settings)
+        logger.info(
+            "EmbeddingService initialized (primary=%s, fallback=%s)",
+            settings.embedding_model,
+            settings.embedding_fallback_model,
+        )
+
     # Initialize routing
     classifier = ClinicalClassifier(
         anthropic_client, settings.default_classifier_model
@@ -55,6 +66,7 @@ async def lifespan(app: FastAPI):
         settings=settings,
         sidecar_client=sidecar_client,
         protocol_store=protocol_store,
+        embedding_service=embedding_service,
     )
 
     # Wire dependencies into API modules

@@ -142,6 +142,14 @@ def sample_sentinel_response():
 
 
 @pytest.fixture
+def mock_embedding_service():
+    """EmbeddingService mock that returns configurable embeddings."""
+    service = AsyncMock()
+    service.embed = AsyncMock(return_value=[0.1] * 1024)
+    return service
+
+
+@pytest.fixture
 def mock_sidecar_client():
     """SidecarClient mock that returns pass-through validation results."""
     from src.services.sidecar_client import SidecarValidationResult
