@@ -63,6 +63,11 @@ services:
       SIDECAR_CLIENT_KEY: /certs/client-key.pem
       SIDECAR_CA_CERT: /certs/ca.pem
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      EMBEDDING_MODEL: voyage-3
+      EMBEDDING_DIMENSION: "1024"
+      EMBEDDING_FALLBACK_MODEL: text-embedding-004
+      VERTEX_AI_LOCATION: us-central1
       CLOUDSQL_DSN: postgresql://sentinel:localdev@postgres:5432/sentinel_health
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       FIRESTORE_EMULATOR_HOST: firestore-emulator:8086

@@ -1,6 +1,5 @@
 """Tests for the RAG retriever node and protocol store integration."""
 
-import json
 from unittest.mock import AsyncMock
 
 import pytest
@@ -47,7 +46,7 @@ def mock_protocol_store():
 
 class TestRAGRetrieverNode:
     @pytest.mark.asyncio
-    async def test_retriever_returns_empty_when_no_store(self, mock_anthropic):
+    async def test_retriever_returns_empty_when_no_store(self, mock_embedding_service):
         """When protocol_store is None, returns empty rag_context."""
         state = _build_base_state()
         state["clinical_context"] = {
@@ -56,14 +55,14 @@ class TestRAGRetrieverNode:
         }
 
         result = await rag_retriever_node(
-            state, protocol_store=None, anthropic_client=mock_anthropic
+            state, protocol_store=None, embedding_service=mock_embedding_service
         )
 
         assert result["rag_context"] == []
 
     @pytest.mark.asyncio
-    async def test_retriever_returns_empty_when_no_anthropic(self, mock_protocol_store):
-        """When anthropic_client is None, returns empty rag_context."""
+    async def test_retriever_returns_empty_when_no_embedding_service(self, mock_protocol_store):
+        """When embedding_service is None, returns empty rag_context."""
         state = _build_base_state()
         state["clinical_context"] = {
             "chief_complaint": "persistent cough",
@@ -71,33 +70,31 @@ class TestRAGRetrieverNode:
         }
 
         result = await rag_retriever_node(
-            state, protocol_store=mock_protocol_store, anthropic_client=None
+            state, protocol_store=mock_protocol_store, embedding_service=None
         )
 
         assert result["rag_context"] == []
 
     @pytest.mark.asyncio
     async def test_retriever_returns_empty_when_no_clinical_context(
-        self, mock_anthropic, mock_protocol_store
+        self, mock_embedding_service, mock_protocol_store
     ):
         """When clinical_context has no useful query text, returns empty."""
         state = _build_base_state()
         state["clinical_context"] = {"chief_complaint": "", "symptoms": []}
 
-        mock_anthropic.embed = AsyncMock(return_value=[0.1] * 1536)
-
         result = await rag_retriever_node(
             state,
             protocol_store=mock_protocol_store,
-            anthropic_client=mock_anthropic,
+            embedding_service=mock_embedding_service,
         )
 
         assert result["rag_context"] == []
         mock_protocol_store.retrieve.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_retriever_fetches_protocols(self, mock_anthropic, mock_protocol_store):
-        """When store and client are available, retrieves protocols."""
+    async def test_retriever_fetches_protocols(self, mock_embedding_service, mock_protocol_store):
+        """When store and service are available, retrieves protocols."""
         state = _build_base_state()
         state["clinical_context"] = {
             "chief_complaint": "persistent cough for 3 days",
@@ -107,12 +104,10 @@ class TestRAGRetrieverNode:
             ],
         }
 
-        mock_anthropic.embed = AsyncMock(return_value=[0.1] * 1536)
-
         result = await rag_retriever_node(
             state,
             protocol_store=mock_protocol_store,
-            anthropic_client=mock_anthropic,
+            embedding_service=mock_embedding_service,
         )
 
         assert len(result["rag_context"]) == 2
@@ -120,8 +115,8 @@ class TestRAGRetrieverNode:
         assert result["rag_context"][1]["source_type"] == "fhir_public"
 
         # Verify embed was called with combined query
-        mock_anthropic.embed.assert_called_once()
-        embed_arg = mock_anthropic.embed.call_args[0][0]
+        mock_embedding_service.embed.assert_called_once()
+        embed_arg = mock_embedding_service.embed.call_args[0][0]
         assert "persistent cough" in embed_arg
         assert "fever" in embed_arg
 
@@ -130,7 +125,7 @@ class TestRAGRetrieverNode:
 
     @pytest.mark.asyncio
     async def test_retriever_handles_embed_failure(
-        self, mock_anthropic, mock_protocol_store
+        self, mock_embedding_service, mock_protocol_store
     ):
         """When embedding fails, returns empty rag_context gracefully."""
         state = _build_base_state()
@@ -139,12 +134,12 @@ class TestRAGRetrieverNode:
             "symptoms": [{"description": "chest pain", "onset": "1 hour", "severity": "severe"}],
         }
 
-        mock_anthropic.embed = AsyncMock(side_effect=Exception("Embedding API error"))
+        mock_embedding_service.embed = AsyncMock(side_effect=Exception("Embedding API error"))
 
         result = await rag_retriever_node(
             state,
             protocol_store=mock_protocol_store,
-            anthropic_client=mock_anthropic,
+            embedding_service=mock_embedding_service,
         )
 
         assert result["rag_context"] == []
@@ -152,7 +147,7 @@ class TestRAGRetrieverNode:
 
     @pytest.mark.asyncio
     async def test_retriever_handles_store_failure(
-        self, mock_anthropic, mock_protocol_store
+        self, mock_embedding_service, mock_protocol_store
     ):
         """When protocol store query fails, returns empty rag_context gracefully."""
         state = _build_base_state()
@@ -161,13 +156,12 @@ class TestRAGRetrieverNode:
             "symptoms": [{"description": "headache", "onset": "2 days", "severity": "moderate"}],
         }
 
-        mock_anthropic.embed = AsyncMock(return_value=[0.1] * 1536)
         mock_protocol_store.retrieve.side_effect = Exception("Database connection lost")
 
         result = await rag_retriever_node(
             state,
             protocol_store=mock_protocol_store,
-            anthropic_client=mock_anthropic,
+            embedding_service=mock_embedding_service,
         )
 
         assert result["rag_context"] == []

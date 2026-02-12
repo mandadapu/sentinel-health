@@ -12,6 +12,7 @@ from src.graph.state import AgentState
 from src.routing.classifier import ClinicalClassifier
 from src.routing.router import ModelRouter
 from src.services.anthropic_client import AnthropicClient
+from src.services.embedding_service import EmbeddingService
 from src.services.protocol_store import ProtocolStore
 from src.services.sidecar_client import SidecarClient
 
@@ -24,6 +25,7 @@ def build_pipeline(
     settings: Settings,
     sidecar_client: SidecarClient | None = None,
     protocol_store: ProtocolStore | None = None,
+    embedding_service: EmbeddingService | None = None,
 ):
     """Build and compile the LangGraph triage pipeline."""
 
@@ -36,7 +38,7 @@ def build_pipeline(
     bound_rag_retriever = functools.partial(
         rag_retriever_node,
         protocol_store=protocol_store,
-        anthropic_client=anthropic_client,
+        embedding_service=embedding_service,
     )
     bound_reasoner = functools.partial(
         reasoner_node,

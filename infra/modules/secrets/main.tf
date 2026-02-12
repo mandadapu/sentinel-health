@@ -8,6 +8,7 @@ locals {
   secrets = {
     "anthropic-api-key"     = { accessors = [var.orchestrator_sa_email] }
     "vertex-ai-api-key"     = { accessors = [var.orchestrator_sa_email] }
+    "voyage-api-key"        = { accessors = [var.orchestrator_sa_email] }
     "cloudsql-app-password" = { accessors = [var.orchestrator_sa_email, var.approval_worker_sa_email] }
   }
 }
