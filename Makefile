@@ -2,7 +2,8 @@
        dev-up dev-down build \
        test backend-test sidecar-test frontend-test worker-test consumer-test \
        lint backend-lint sidecar-lint worker-lint consumer-lint \
-       typecheck gen-certs
+       typecheck gen-certs \
+       db-init db-reset
 
 ENV ?= dev
 TF_DIR = infra/environments/$(ENV)
@@ -79,3 +80,12 @@ dev-down:
 
 gen-certs:
 	bash certs/generate-dev-certs.sh
+
+# ── Database ─────────────────────────────────────────────────────────────
+
+db-init:
+	cat backend/sql/*.sql | docker-compose exec -T postgres psql -U sentinel sentinel_health
+
+db-reset:
+	docker-compose exec postgres psql -U sentinel -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	$(MAKE) db-init

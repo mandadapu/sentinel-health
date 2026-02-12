@@ -9,6 +9,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./backend/sql:/docker-entrypoint-initdb.d:ro
 
   pubsub-emulator:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:latest
@@ -62,6 +63,7 @@ services:
       SIDECAR_CLIENT_KEY: /certs/client-key.pem
       SIDECAR_CA_CERT: /certs/ca.pem
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLOUDSQL_DSN: postgresql://sentinel:localdev@postgres:5432/sentinel_health
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
       FIRESTORE_EMULATOR_HOST: firestore-emulator:8086
     volumes:
