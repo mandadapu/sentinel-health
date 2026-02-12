@@ -4,8 +4,6 @@
 
 The Sentinel-Health Orchestrator automates clinical triage and documentation for mid-size hospital systems (50–500 encounters/day) using a multi-agent LangGraph pipeline with Zero-Trust security. Discovery was conducted through sequential requirements gathering followed by six architecture decisions, covering model routing, execution model, safety validation, RAG, frontend, and observability.
 
-**Build Timeline:** Phased — 3-month MVP (core triage pipeline + React dashboard), then 3-month Phase 2 (multimodal extraction + EHR integration).
-
 ---
 
 ## Requirements Baseline
