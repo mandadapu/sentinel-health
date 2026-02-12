@@ -1,4 +1,4 @@
-"""Transform Pub/Sub audit doc to BigQuery audit_trail row."""
+"""Transform Pub/Sub audit doc to BigQuery rows."""
 
 import json
 
@@ -24,5 +24,17 @@ def transform_audit_event(doc: dict) -> dict:
         "sentinel_confidence_score": sentinel.get("confidence_score"),
         "circuit_breaker_tripped": sentinel.get("circuit_breaker_tripped"),
         "duration_ms": doc.get("duration_ms"),
+        "created_at": doc.get("timestamp"),
+    }
+
+
+def transform_classifier_feedback(doc: dict) -> dict:
+    """Map classifier feedback event to BigQuery classifier_feedback schema."""
+    return {
+        "encounter_id": doc["encounter_id"],
+        "original_category": doc["original_category"],
+        "corrected_category": doc["corrected_category"],
+        "classifier_confidence": doc.get("classifier_confidence"),
+        "reviewer_id": doc["reviewer_id"],
         "created_at": doc.get("timestamp"),
     }

@@ -16,6 +16,7 @@ export function TriageDetailPage() {
   const { sessions, updateApproval } = useTriageSessions();
   const { entries: auditEntries, loading: auditLoading } = useAuditTrail(id);
   const [notes, setNotes] = useState("");
+  const [correctedCategory, setCorrectedCategory] = useState("");
 
   const session = sessions.find((s) => s.encounter_id === id);
 
@@ -30,12 +31,31 @@ export function TriageDetailPage() {
     );
   }
 
+  const CLINICAL_CATEGORIES = [
+    "routine_vitals",
+    "chronic_management",
+    "symptom_assessment",
+    "medication_review",
+    "diagnostic_interpretation",
+    "acute_presentation",
+    "critical_emergency",
+    "mental_health",
+    "pediatric",
+    "surgical_consult",
+  ] as const;
+
   async function handleApproval(status: "approved" | "rejected") {
     if (!id || !user?.email) return;
+    const originalCategory = session?.routing_metadata?.category ?? "";
+    const correction =
+      correctedCategory && correctedCategory !== originalCategory
+        ? correctedCategory
+        : undefined;
     try {
-      await updateApproval(id, status, user.email, notes);
+      await updateApproval(id, status, user.email, notes, correction);
       toast(`Encounter ${status}`, "success");
       setNotes("");
+      setCorrectedCategory("");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Update failed", "error");
     }
@@ -59,6 +79,20 @@ export function TriageDetailPage() {
           <StatusBadge status={session.status} />
           {session.status === "pending" && (
             <div className="space-y-2">
+              <label className="block text-xs font-medium text-muted">
+                Correct classification (if misrouted)
+              </label>
+              <select
+                value={correctedCategory || session.routing_metadata?.category || ""}
+                onChange={(e) => setCorrectedCategory(e.target.value)}
+                className="w-64 rounded-md border border-border px-3 py-2 text-sm"
+              >
+                {CLINICAL_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </select>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}

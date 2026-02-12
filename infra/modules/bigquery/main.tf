@@ -35,3 +35,21 @@ resource "google_bigquery_table" "audit_trail" {
 
   clustering = ["encounter_id", "node_name"]
 }
+
+resource "google_bigquery_table" "classifier_feedback" {
+  dataset_id          = google_bigquery_dataset.sentinel_health.dataset_id
+  table_id            = "classifier_feedback"
+  project             = var.project_id
+  description         = "Classifier misroute corrections from clinician review — used for fine-tuning"
+  deletion_protection = true
+  labels              = local.labels
+
+  schema = file("${path.module}/schemas/classifier_feedback.json")
+
+  time_partitioning {
+    type  = "DAY"
+    field = "created_at"
+  }
+
+  clustering = ["original_category", "corrected_category"]
+}

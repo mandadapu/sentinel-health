@@ -2,12 +2,13 @@
 
 import base64
 import json
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from src.main import app
-from src.transform import transform_audit_event
+from src.transform import transform_audit_event, transform_classifier_feedback
 
 
 def _encode_message(data: dict) -> str:
@@ -153,3 +154,84 @@ class TestTransform:
         assert row["sentinel_hallucination_score"] is None
         assert row["sentinel_confidence_score"] is None
         assert row["circuit_breaker_tripped"] is None
+
+
+class TestClassifierFeedbackRouting:
+    async def test_feedback_event_routes_to_feedback_table(self, client, mock_bigquery):
+        """classifier_feedback events are routed to the feedback BigQuery table."""
+        feedback_bq = AsyncMock()
+        feedback_bq.insert = AsyncMock(return_value=None)
+        app.state.feedback_bq = feedback_bq
+
+        feedback = {
+            "event_type": "classifier_feedback",
+            "encounter_id": "enc-001",
+            "original_category": "routine_vitals",
+            "corrected_category": "acute_presentation",
+            "classifier_confidence": 0.72,
+            "reviewer_id": "dr-smith",
+            "timestamp": "2025-01-15T12:00:00Z",
+        }
+        envelope = {
+            "message": {
+                "data": _encode_message(feedback),
+                "message_id": "msg-feedback-001",
+                "publish_time": "2025-01-15T12:00:00Z",
+            },
+            "subscription": "projects/sentinel-health-dev/subscriptions/audit-events-sub",
+        }
+
+        response = await client.post("/push/audit-event", json=envelope)
+        assert response.status_code == 200
+
+        # Feedback goes to feedback_bq, not the main bigquery
+        feedback_bq.insert.assert_called_once()
+        row = feedback_bq.insert.call_args[0][0]
+        assert row["original_category"] == "routine_vitals"
+        assert row["corrected_category"] == "acute_presentation"
+        assert row["reviewer_id"] == "dr-smith"
+
+        mock_bigquery.insert.assert_not_called()
+
+    async def test_regular_event_still_routes_to_audit_trail(
+        self, client, mock_bigquery, sample_audit_event
+    ):
+        """Regular audit events (no event_type) still go to audit_trail table."""
+        feedback_bq = AsyncMock()
+        feedback_bq.insert = AsyncMock(return_value=None)
+        app.state.feedback_bq = feedback_bq
+
+        envelope = {
+            "message": {
+                "data": _encode_message(sample_audit_event),
+                "message_id": "msg-regular-001",
+                "publish_time": "2025-01-15T10:30:00Z",
+            },
+            "subscription": "projects/sentinel-health-dev/subscriptions/audit-events-sub",
+        }
+
+        response = await client.post("/push/audit-event", json=envelope)
+        assert response.status_code == 200
+
+        mock_bigquery.insert.assert_called_once()
+        feedback_bq.insert.assert_not_called()
+
+
+class TestFeedbackTransform:
+    def test_transform_classifier_feedback(self):
+        doc = {
+            "event_type": "classifier_feedback",
+            "encounter_id": "enc-001",
+            "original_category": "routine_vitals",
+            "corrected_category": "acute_presentation",
+            "classifier_confidence": 0.72,
+            "reviewer_id": "dr-smith",
+            "timestamp": "2025-01-15T12:00:00Z",
+        }
+        row = transform_classifier_feedback(doc)
+        assert row["encounter_id"] == "enc-001"
+        assert row["original_category"] == "routine_vitals"
+        assert row["corrected_category"] == "acute_presentation"
+        assert row["classifier_confidence"] == 0.72
+        assert row["reviewer_id"] == "dr-smith"
+        assert row["created_at"] == "2025-01-15T12:00:00Z"

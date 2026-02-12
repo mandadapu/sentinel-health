@@ -1,0 +1,38 @@
+[
+  {
+    "name": "encounter_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Encounter ID linking to the triage session"
+  },
+  {
+    "name": "original_category",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Clinical category chosen by the classifier"
+  },
+  {
+    "name": "corrected_category",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Clinical category corrected by the clinician"
+  },
+  {
+    "name": "classifier_confidence",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "Classifier confidence score for the original category"
+  },
+  {
+    "name": "reviewer_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Clinician who provided the correction"
+  },
+  {
+    "name": "created_at",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED",
+    "description": "When the correction was submitted"
+  }
+]

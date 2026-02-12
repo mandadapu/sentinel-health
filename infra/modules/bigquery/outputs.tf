@@ -8,6 +8,11 @@ output "audit_trail_table_id" {
   value       = google_bigquery_table.audit_trail.table_id
 }
 
+output "classifier_feedback_table_id" {
+  description = "BigQuery classifier feedback table ID"
+  value       = google_bigquery_table.classifier_feedback.table_id
+}
+
 output "dataset_self_link" {
   description = "BigQuery dataset self link"
   value       = google_bigquery_dataset.sentinel_health.self_link

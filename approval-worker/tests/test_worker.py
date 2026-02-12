@@ -124,7 +124,7 @@ class TestApproveEndpoint:
         assert response.json()["status"] == "ok"
 
         mock_firestore.update_approval_status.assert_called_once_with(
-            "enc-001", "approved", "dr-smith", "Looks correct"
+            "enc-001", "approved", "dr-smith", "Looks correct", None
         )
         mock_firestore.update_triage_session_status.assert_called_once_with(
             "enc-001", "approved", "dr-smith", "Looks correct"
@@ -147,7 +147,7 @@ class TestApproveEndpoint:
         assert response.status_code == 200
 
         mock_firestore.update_approval_status.assert_called_once_with(
-            "enc-001", "rejected", "dr-smith", "Triage level too low"
+            "enc-001", "rejected", "dr-smith", "Triage level too low", None
         )
         mock_firestore.update_triage_session_status.assert_called_once_with(
             "enc-001", "rejected", "dr-smith", "Triage level too low"
@@ -182,3 +182,78 @@ class TestApproveEndpoint:
 
         response = await client.post("/api/approve", json=request)
         assert response.status_code == 409
+
+
+class TestClassifierFeedback:
+    @pytest.mark.asyncio
+    async def test_corrected_category_publishes_feedback(
+        self, client, mock_firestore, mock_pubsub
+    ):
+        """When corrected_category differs from original, feedback is published."""
+        mock_firestore.get_approval.return_value = {
+            "encounter_id": "enc-001",
+            "status": "pending_approval",
+            "triage_result": {
+                "routing_reason": "routine_vitals",
+                "confidence": 0.75,
+            },
+        }
+
+        request = {
+            "encounter_id": "enc-001",
+            "status": "approved",
+            "reviewer_id": "dr-smith",
+            "notes": "This is actually acute",
+            "corrected_category": "acute_presentation",
+        }
+
+        response = await client.post("/api/approve", json=request)
+        assert response.status_code == 200
+
+        mock_pubsub.publish_classifier_feedback.assert_called_once()
+        feedback = mock_pubsub.publish_classifier_feedback.call_args[0][0]
+        assert feedback["event_type"] == "classifier_feedback"
+        assert feedback["original_category"] == "routine_vitals"
+        assert feedback["corrected_category"] == "acute_presentation"
+        assert feedback["classifier_confidence"] == 0.75
+        assert feedback["reviewer_id"] == "dr-smith"
+
+    @pytest.mark.asyncio
+    async def test_no_correction_does_not_publish_feedback(
+        self, client, mock_firestore, mock_pubsub
+    ):
+        """When corrected_category is not provided, no feedback is published."""
+        request = {
+            "encounter_id": "enc-001",
+            "status": "approved",
+            "reviewer_id": "dr-smith",
+        }
+
+        response = await client.post("/api/approve", json=request)
+        assert response.status_code == 200
+        mock_pubsub.publish_classifier_feedback.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_same_category_does_not_publish_feedback(
+        self, client, mock_firestore, mock_pubsub
+    ):
+        """When corrected_category matches original, no feedback is published."""
+        mock_firestore.get_approval.return_value = {
+            "encounter_id": "enc-001",
+            "status": "pending_approval",
+            "triage_result": {
+                "routing_reason": "symptom_assessment",
+                "confidence": 0.88,
+            },
+        }
+
+        request = {
+            "encounter_id": "enc-001",
+            "status": "approved",
+            "reviewer_id": "dr-smith",
+            "corrected_category": "symptom_assessment",
+        }
+
+        response = await client.post("/api/approve", json=request)
+        assert response.status_code == 200
+        mock_pubsub.publish_classifier_feedback.assert_not_called()

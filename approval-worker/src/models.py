@@ -21,6 +21,7 @@ class ApprovalRequest(BaseModel):
     status: Literal["approved", "rejected"]
     reviewer_id: str
     notes: str = ""
+    corrected_category: str | None = None
 
 
 class ApprovalResponse(BaseModel):

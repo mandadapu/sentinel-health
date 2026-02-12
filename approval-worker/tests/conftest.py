@@ -26,4 +26,5 @@ def mock_firestore():
 def mock_pubsub():
     pub = AsyncMock(spec=ApprovalPubSub)
     pub.publish_triage_approved.return_value = None
+    pub.publish_classifier_feedback.return_value = None
     return pub

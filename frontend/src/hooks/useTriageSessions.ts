@@ -56,13 +56,18 @@ export function useTriageSessions(collectionName = "triage_sessions") {
     status: ApprovalStatus,
     reviewerEmail: string,
     notes: string = "",
+    correctedCategory?: string,
   ) {
-    await apiPost("/api/approve", {
+    const body: Record<string, unknown> = {
       encounter_id: encounterId,
       status,
       reviewer_id: reviewerEmail,
       notes,
-    });
+    };
+    if (correctedCategory) {
+      body.corrected_category = correctedCategory;
+    }
+    await apiPost("/api/approve", body);
   }
 
   return { sessions, loading, error, updateApproval };

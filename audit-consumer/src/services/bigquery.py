@@ -9,13 +9,14 @@ logger = logging.getLogger(__name__)
 
 
 class AuditBigQuery:
-    def __init__(self, settings: ConsumerSettings) -> None:
+    def __init__(self, settings: ConsumerSettings, table_override: str | None = None) -> None:
         self._client = None
         self._table_ref = ""
         self._buffer: list[dict] = []
         self._batch_size = settings.batch_size
         self._flush_interval = settings.flush_interval_seconds
         self._flush_task: asyncio.Task | None = None
+        table_name = table_override or settings.bigquery_table
 
         if settings.bigquery_dataset:
             try:
@@ -23,7 +24,7 @@ class AuditBigQuery:
 
                 self._client = bigquery.Client(project=settings.gcp_project_id)
                 self._table_ref = (
-                    f"{settings.gcp_project_id}.{settings.bigquery_dataset}.{settings.bigquery_table}"
+                    f"{settings.gcp_project_id}.{settings.bigquery_dataset}.{table_name}"
                 )
                 logger.info("BigQuery client initialized for %s", self._table_ref)
             except Exception:

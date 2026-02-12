@@ -25,17 +25,19 @@ class ApprovalFirestore:
         status: str,
         reviewer_id: str,
         notes: str,
+        corrected_category: str | None = None,
     ) -> None:
+        update: dict[str, Any] = {
+            "status": status,
+            "reviewer_id": reviewer_id,
+            "reviewer_notes": notes,
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if corrected_category:
+            update["corrected_category"] = corrected_category
         doc_ref = self._client.collection(self._collection).document(encounter_id)
-        await doc_ref.update(
-            {
-                "status": status,
-                "reviewer_id": reviewer_id,
-                "reviewer_notes": notes,
-                "reviewed_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
-        )
+        await doc_ref.update(update)
 
     async def get_approval(self, encounter_id: str) -> dict[str, Any] | None:
         doc_ref = self._client.collection(self._collection).document(encounter_id)

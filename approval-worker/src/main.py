@@ -4,10 +4,14 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from src.config import get_settings
 from src.logging_config import configure_logging
+from src.middleware.rate_limit import limiter, APPROVE_RATE_LIMIT, HEALTH_RATE_LIMIT, PUSH_RATE_LIMIT
 from src.models import ApprovalRequest, ApprovalResponse, HealthResponse, PushEnvelope
 from src.services.firestore import ApprovalFirestore
 from src.services.pubsub import ApprovalPubSub
@@ -33,9 +37,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS
+_settings = get_settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
+)
+
 
 @app.get("/health", response_model=HealthResponse)
-async def health():
+@limiter.limit(HEALTH_RATE_LIMIT)
+async def health(request: Request):
     settings = get_settings()
     return HealthResponse(
         status="healthy",
@@ -45,7 +65,8 @@ async def health():
 
 
 @app.post("/push/triage-completed")
-async def handle_triage_completed(envelope: PushEnvelope):
+@limiter.limit(PUSH_RATE_LIMIT)
+async def handle_triage_completed(request: Request, envelope: PushEnvelope):
     """Pub/Sub push handler — creates an approval queue entry in Firestore."""
     try:
         raw = base64.b64decode(envelope.message.data)
@@ -80,13 +101,14 @@ async def handle_triage_completed(envelope: PushEnvelope):
 
 
 @app.post("/api/approve", response_model=ApprovalResponse)
-async def approve_triage(request: ApprovalRequest):
+@limiter.limit(APPROVE_RATE_LIMIT)
+async def approve_triage(request: Request, body: ApprovalRequest):
     """Clinician approval or rejection of a triage result."""
     firestore: ApprovalFirestore = app.state.firestore
     pubsub: ApprovalPubSub = app.state.pubsub
 
     # Verify the approval entry exists
-    entry = await firestore.get_approval(request.encounter_id)
+    entry = await firestore.get_approval(body.encounter_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="Approval entry not found")
 
@@ -97,33 +119,61 @@ async def approve_triage(request: ApprovalRequest):
         )
 
     await firestore.update_approval_status(
-        request.encounter_id,
-        request.status,
-        request.reviewer_id,
-        request.notes,
+        body.encounter_id,
+        body.status,
+        body.reviewer_id,
+        body.notes,
+        body.corrected_category,
     )
 
     # Update triage_sessions so the frontend dashboard reflects approval status
     await firestore.update_triage_session_status(
-        request.encounter_id,
-        request.status,
-        request.reviewer_id,
-        request.notes,
+        body.encounter_id,
+        body.status,
+        body.reviewer_id,
+        body.notes,
     )
 
-    if request.status == "approved":
+    if body.status == "approved":
         await pubsub.publish_triage_approved(
             {
-                "encounter_id": request.encounter_id,
-                "reviewer_id": request.reviewer_id,
+                "encounter_id": body.encounter_id,
+                "reviewer_id": body.reviewer_id,
                 "approved_at": datetime.now(timezone.utc).isoformat(),
             }
         )
 
+    # Publish classifier feedback when clinician corrects the category
+    original_category = entry.get("triage_result", {}).get("routing_reason", "")
+    if (
+        body.corrected_category
+        and body.corrected_category != original_category
+    ):
+        await pubsub.publish_classifier_feedback(
+            {
+                "event_type": "classifier_feedback",
+                "encounter_id": body.encounter_id,
+                "original_category": original_category,
+                "corrected_category": body.corrected_category,
+                "classifier_confidence": entry.get("triage_result", {}).get(
+                    "confidence"
+                ),
+                "reviewer_id": body.reviewer_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        logger.info(
+            "Classifier feedback: encounter %s reclassified %s → %s by %s",
+            body.encounter_id,
+            original_category,
+            body.corrected_category,
+            body.reviewer_id,
+        )
+
     logger.info(
         "Encounter %s %s by %s",
-        request.encounter_id,
-        request.status,
-        request.reviewer_id,
+        body.encounter_id,
+        body.status,
+        body.reviewer_id,
     )
-    return ApprovalResponse(status="ok", encounter_id=request.encounter_id)
+    return ApprovalResponse(status="ok", encounter_id=body.encounter_id)
