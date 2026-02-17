@@ -32,7 +32,7 @@ The Sentinel-Health Orchestrator automates clinical triage and documentation for
   - Clinical classification categories replace general-purpose ones: `routine_vitals`, `symptom_assessment`, `medication_review`, `acute_presentation`, `critical_emergency`, `mental_health`, `pediatric`, `surgical_consult`, `chronic_management`, `diagnostic_interpretation`
   - Conservative threshold tuning: escalation trigger raised from 55% → 70% confidence minimum for any clinical routing
   - Safety override: any encounter containing keywords from a critical-symptom dictionary (chest pain, stroke symptoms, anaphylaxis, etc.) bypasses classifier → routes directly to Opus regardless of confidence
-  - All classifier misroutes are logged to BigQuery with human-corrected labels for fine-tuning
+  - All classifier misroutes are logged to BigQuery with human-corrected labels for fine-tuning (**Implemented** — `classifier_feedback` BigQuery table, clinician correction dropdown in approval UI, feedback published via `audit-events` Pub/Sub topic)
 
 **Model Assignment by Clinical Category:**
 
@@ -331,6 +331,23 @@ PARTITION BY DATE(created_at)
 CLUSTER BY encounter_id, node_name;
 ```
 
+**Classifier Feedback Table** *(Implemented — supports ADR-1 misroute logging):*
+
+```sql
+CREATE TABLE sentinel_health.classifier_feedback (
+    encounter_id STRING NOT NULL,
+    original_category STRING NOT NULL,
+    corrected_category STRING NOT NULL,
+    classifier_confidence FLOAT64,
+    reviewer_id STRING NOT NULL,
+    created_at TIMESTAMP NOT NULL
+)
+PARTITION BY DATE(created_at)
+CLUSTER BY original_category, corrected_category;
+```
+
+When a clinician corrects the classifier's routing category during approval, a `classifier_feedback` event is published to the existing `audit-events` Pub/Sub topic. The audit consumer routes these events to the `classifier_feedback` table (instead of `audit_trail`) based on the `event_type` field.
+
 ---
 
 ## System Architecture — Complete View
@@ -346,6 +363,19 @@ CLUSTER BY encounter_id, node_name;
 │           │                    │ SSE: /api/stream/triage-results            │
 └───────────┼────────────────────┼───────────────────────────────────────────┘
             │ HTTPS              │
+            ▼                    │
+┌───────────────────────────────────────────────────────────────────────────┐
+│              GLOBAL HTTPS LOAD BALANCER + CLOUD ARMOR (Implemented)        │
+│                                                                           │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────────┐  │
+│  │ Static IP +     │  │ URL Map          │  │ Cloud Armor WAF        │  │
+│  │ Managed SSL     │  │ / → frontend     │  │ ├── Rate limiting      │  │
+│  │ HTTP→HTTPS      │  │ /api/* → backend │  │ ├── OWASP SQLi+XSS    │  │
+│  │ redirect        │  │                  │  │ └── Default allow      │  │
+│  └─────────────────┘  └──────────────────┘  └────────────────────────┘  │
+│  Cloud Run ingress restricted to INTERNAL + CLOUD_LOAD_BALANCING        │
+└───────────────────────────────────────────────────────────────────────────┘
+            │                    │
             ▼                    │
 ┌───────────────────────────────────────────────────────────────────────────┐
 │                    CLOUD RUN — ORCHESTRATOR (Python/FastAPI)               │
@@ -393,9 +423,12 @@ CLUSTER BY encounter_id, node_name;
 └───────────────────────┘  │ │    └── triage_approvals                     │
                            │ │                                              │
                            │ │  BIGQUERY (us-central1)                     │
-                           └▶│    └── sentinel_health.audit_trail          │
+                           └▶│    ├── sentinel_health.audit_trail          │
+                             │    │   (partitioned by date, clustered by   │
+                             │    │    encounter_id)                        │
+                             │    └── sentinel_health.classifier_feedback  │
                              │        (partitioned by date, clustered by   │
-                             │         encounter_id)                        │
+                             │         original_category)                   │
                              └──────────────────────────────────────────────┘
                                                │
 ┌──────────────────────────────────────────────┼───────────────────────────┐
@@ -426,7 +459,8 @@ CLUSTER BY encounter_id, node_name;
 │  │ ├── VPC Service Controls (us-central1 perimeter)                 │    │
 │  │ ├── Cloud IAM Workload Identity Federation (agent SAs)           │    │
 │  │ ├── mTLS between Orchestrator ↔ Sidecar                         │    │
-│  │ ├── Cloud Monitoring + Alerting (DLQ depth, circuit breaker)     │    │
+│  │ ├── Cloud Armor WAF (rate limiting, OWASP SQLi+XSS) [Impl]      │    │
+│  │ ├── Cloud Monitoring + Alerting (5 policies + dashboard) [Impl]  │    │
 │  │ └── Secret Manager (API keys, DB credentials)                    │    │
 │  └──────────────────────────────────────────────────────────────────┘    │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -461,13 +495,16 @@ CLUSTER BY encounter_id, node_name;
 - Cloud SQL schema (protocols, audit, approvals)
 - Terraform IaC for GCP resources (Cloud Run, Pub/Sub, Firestore, Cloud SQL, KMS)
 - HIPAA security controls (CMEK, VPC, IAM, mTLS)
+- Global HTTPS Load Balancer with Cloud Armor WAF (rate limiting, OWASP rules)
+- Cloud Monitoring + Alerting (DLQ depth, error rate, latency, SQL metrics, dashboard)
+- Classifier feedback loop — clinician-corrected labels logged to BigQuery for fine-tuning
 
 ### Out of Scope (Phase 2)
 - Multimodal extraction (insurance cards, handwritten notes via Vertex AI Vision)
 - EHR integration (Epic/Cerner FHIR APIs, SMART-on-FHIR OAuth)
 - Advanced analytics dashboard
 - Protocol management admin interface
-- Automated classifier retraining from human correction labels
+- Automated classifier retraining from human correction labels (feedback data collection is MVP — see classifier_feedback table)
 - Multi-hospital tenancy
 
 ---
@@ -483,11 +520,13 @@ Using Terraform, initialize a HIPAA-compliant GCP project in us-central1. Create
 4. Cloud SQL PostgreSQL 15 with pgvector extension, CMEK via Cloud KMS
 5. Firestore in Native mode
 6. Pub/Sub topics: triage-completed, audit-events, triage-approved (each with DLQ)
-7. BigQuery dataset: sentinel_health with audit_trail table (partitioned by date)
+7. BigQuery dataset: sentinel_health with audit_trail + classifier_feedback tables
 8. Cloud KMS keyring with keys for Cloud SQL CMEK
 9. Service accounts with least-privilege IAM for each Cloud Run service
 10. VPC Connector for Cloud Run → Cloud SQL private access
 11. Secret Manager for API keys (Anthropic, Vertex AI)
+12. Global HTTPS Load Balancer with Cloud Armor WAF (rate limiting, OWASP rules)
+13. Cloud Monitoring: alert policies (DLQ depth, error rate, latency, SQL metrics) + dashboard
 ```
 
 ### Prompt 2 — LangGraph Pipeline
@@ -547,3 +586,8 @@ Create a React SPA with:
 - [x] Write-ahead audit to Firestore before pipeline proceeds (ADR-6)
 - [x] Safety override bypasses classifier for critical symptoms (ADR-1)
 - [x] EHR integration hooks designed via Hexagonal Architecture ports (Phase 2 ready)
+- [x] Cloud Monitoring: 5 alert policies (DLQ depth, error rate, p99 latency, SQL connections, SQL CPU) + dashboard (Infra)
+- [x] Global HTTPS Load Balancer with managed SSL, HTTP→HTTPS redirect, path-based routing (Infra)
+- [x] Cloud Armor WAF: rate limiting (1000 req/min), OWASP SQLi+XSS preconfigured rules (Infra)
+- [x] Cloud Run ingress restricted to internal + Cloud Load Balancing (Infra)
+- [x] Classifier feedback loop: clinician correction → BigQuery `classifier_feedback` table (ADR-1, ADR-6)
