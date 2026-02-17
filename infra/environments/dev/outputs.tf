@@ -73,3 +73,11 @@ output "monitoring_dashboard_id" {
   description = "Cloud Monitoring dashboard ID"
   value       = module.monitoring.dashboard_id
 }
+
+# ---------------------------------------------------------------------------
+# Load Balancer
+# ---------------------------------------------------------------------------
+output "load_balancer_ip" {
+  description = "Global load balancer IP address"
+  value       = module.load_balancer.lb_ip_address
+}

@@ -35,3 +35,9 @@ variable "domain_name" {
   type        = string
   default     = "sentinel-health.example.com"
 }
+
+variable "access_policy_id" {
+  description = "Organization-level Access Context Manager policy ID for VPC Service Controls (leave empty to skip)"
+  type        = string
+  default     = ""
+}

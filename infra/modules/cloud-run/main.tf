@@ -14,6 +14,8 @@ resource "google_cloud_run_v2_service" "orchestrator" {
   location = var.region
   project  = var.project_id
 
+  ingress = var.restrict_ingress ? "INGRESS_TRAFFIC_INTERNAL_AND_CLOUD_LOAD_BALANCING" : "INGRESS_TRAFFIC_ALL"
+
   template {
     service_account = var.orchestrator_sa_email
     timeout         = "300s"
@@ -329,6 +331,8 @@ resource "google_cloud_run_v2_service" "frontend" {
   location = var.region
   project  = var.project_id
 
+  ingress = var.restrict_ingress ? "INGRESS_TRAFFIC_INTERNAL_AND_CLOUD_LOAD_BALANCING" : "INGRESS_TRAFFIC_ALL"
+
   template {
     scaling {
       min_instance_count = var.worker_min_instances
@@ -386,8 +390,9 @@ resource "google_cloud_run_v2_service_iam_member" "pubsub_invoker_audit_consumer
   member   = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 
-# Allow unauthenticated access to orchestrator (fronted by load balancer in prod)
+# Allow unauthenticated access to orchestrator (disabled when behind load balancer)
 resource "google_cloud_run_v2_service_iam_member" "orchestrator_invoker" {
+  count    = var.restrict_ingress ? 0 : 1
   name     = google_cloud_run_v2_service.orchestrator.name
   location = var.region
   project  = var.project_id
@@ -395,8 +400,9 @@ resource "google_cloud_run_v2_service_iam_member" "orchestrator_invoker" {
   member   = "allUsers"
 }
 
-# Allow unauthenticated access to frontend
+# Allow unauthenticated access to frontend (disabled when behind load balancer)
 resource "google_cloud_run_v2_service_iam_member" "frontend_invoker" {
+  count    = var.restrict_ingress ? 0 : 1
   name     = google_cloud_run_v2_service.frontend.name
   location = var.region
   project  = var.project_id

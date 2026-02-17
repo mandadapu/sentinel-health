@@ -29,3 +29,9 @@ variable "notification_email" {
   description = "Email address for Cloud Monitoring alert notifications"
   type        = string
 }
+
+variable "domain_name" {
+  description = "Custom domain for the load balancer (leave empty until domain is ready)"
+  type        = string
+  default     = ""
+}

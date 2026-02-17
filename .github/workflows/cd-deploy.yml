@@ -54,13 +54,12 @@ jobs:
       - name: Terraform Apply
         run: terraform -chdir=infra/environments/staging apply plan.tfplan
 
-      - name: Run Alembic Migrations
+      - name: Run Database Migrations
         run: |
-          echo "::group::Database migrations"
-          # Migrations run via Cloud SQL Auth Proxy in a Cloud Run Job
-          # or directly from the deployed service's startup
-          echo "Alembic migrations will be applied by the orchestrator on startup"
-          echo "::endgroup::"
+          gcloud run jobs execute sentinel-staging-db-migrate \
+            --project ${{ secrets.STAGING_PROJECT_ID }} \
+            --region us-central1 \
+            --wait
 
       - name: Verify Deployment
         run: |
@@ -99,11 +98,12 @@ jobs:
       - name: Terraform Apply
         run: terraform -chdir=infra/environments/prod apply plan.tfplan
 
-      - name: Run Alembic Migrations
+      - name: Run Database Migrations
         run: |
-          echo "::group::Database migrations"
-          echo "Alembic migrations will be applied by the orchestrator on startup"
-          echo "::endgroup::"
+          gcloud run jobs execute sentinel-prod-db-migrate \
+            --project ${{ secrets.PROD_PROJECT_ID }} \
+            --region us-central1 \
+            --wait
 
       - name: Verify Deployment
         run: |

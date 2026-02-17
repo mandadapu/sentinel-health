@@ -129,3 +129,9 @@ variable "cors_allowed_origins" {
   type        = string
   default     = "http://localhost:3000"
 }
+
+variable "restrict_ingress" {
+  description = "Restrict Cloud Run ingress to internal + Cloud Load Balancing only"
+  type        = bool
+  default     = false
+}

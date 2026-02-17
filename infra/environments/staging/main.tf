@@ -174,12 +174,59 @@ module "cloud_run" {
   audit_consumer_sa_email      = module.iam.audit_consumer_sa_email
   cloudsql_instance_connection = module.cloud_sql.instance_connection_name
 
+  restrict_ingress = true
+
   depends_on = [
     module.networking,
     module.iam,
     module.cloud_sql,
     module.secrets,
   ]
+}
+
+# ---------------------------------------------------------------------------
+# Cloud Armor — WAF + rate limiting
+# ---------------------------------------------------------------------------
+module "cloud_armor" {
+  source = "../../modules/cloud-armor"
+
+  project_id = var.project_id
+  env        = var.env
+
+  depends_on = [google_project_service.apis]
+}
+
+# ---------------------------------------------------------------------------
+# Load Balancer — Global HTTPS LB with Cloud Armor
+# ---------------------------------------------------------------------------
+module "load_balancer" {
+  source = "../../modules/load-balancer"
+
+  project_id                           = var.project_id
+  region                               = var.region
+  env                                  = var.env
+  domain_name                          = var.domain_name
+  frontend_cloud_run_service_name      = module.cloud_run.frontend_name
+  orchestrator_cloud_run_service_name  = module.cloud_run.orchestrator_name
+  security_policy_id                   = module.cloud_armor.security_policy_id
+
+  depends_on = [module.cloud_run, module.cloud_armor]
+}
+
+# ---------------------------------------------------------------------------
+# Migration Job — Cloud Run Job for Alembic migrations
+# ---------------------------------------------------------------------------
+module "migration_job" {
+  source = "../../modules/migration-job"
+
+  project_id                   = var.project_id
+  region                       = var.region
+  env                          = var.env
+  orchestrator_sa_email        = module.iam.orchestrator_sa_email
+  vpc_connector_id             = module.networking.vpc_connector_id
+  cloudsql_instance_connection = module.cloud_sql.instance_connection_name
+
+  depends_on = [module.networking, module.iam, module.cloud_sql]
 }
 
 # ---------------------------------------------------------------------------
