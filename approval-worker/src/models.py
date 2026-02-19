@@ -33,3 +33,4 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     environment: str
+    checks: dict[str, str] = {}

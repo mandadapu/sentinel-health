@@ -7,6 +7,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from src.api import health, stream, triage
+from src.middleware.error_handler import generic_exception_handler
 from src.audit.writer import AuditWriter
 from src.config import get_settings
 from src.logging_config import configure_logging
@@ -80,6 +81,7 @@ async def lifespan(app: FastAPI):
     # Wire dependencies into API modules
     triage.set_dependencies(pipeline, audit_writer, firestore)
     stream.set_dependencies(firestore)
+    health.set_dependencies(firestore, sidecar_client, protocol_store)
 
     logger.info("Sentinel-Health orchestrator started (env=%s)", settings.env)
     yield
@@ -101,6 +103,7 @@ app = FastAPI(
 # Rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
 
 # CORS
 _settings = get_settings()

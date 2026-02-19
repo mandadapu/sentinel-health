@@ -4,13 +4,15 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from src.config import get_settings
 from src.logging_config import configure_logging
+from src.middleware.auth import verify_firebase_token
 from src.middleware.rate_limit import limiter, APPROVE_RATE_LIMIT, HEALTH_RATE_LIMIT, PUSH_RATE_LIMIT
 from src.models import ApprovalRequest, ApprovalResponse, HealthResponse, PushEnvelope
 from src.services.firestore import ApprovalFirestore
@@ -41,6 +43,15 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+# Global exception handler
+async def _generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
+app.add_exception_handler(Exception, _generic_exception_handler)
+
 # CORS
 _settings = get_settings()
 app.add_middleware(
@@ -57,10 +68,25 @@ app.add_middleware(
 @limiter.limit(HEALTH_RATE_LIMIT)
 async def health(request: Request):
     settings = get_settings()
+    checks: dict[str, str] = {}
+    status = "healthy"
+
+    firestore: ApprovalFirestore = request.app.state.firestore
+    try:
+        ok = await firestore.health_check()
+        checks["firestore"] = "ok" if ok else "fail"
+    except Exception:
+        logger.warning("Firestore health check failed", exc_info=True)
+        checks["firestore"] = "fail"
+
+    if checks.get("firestore") == "fail":
+        status = "unhealthy"
+
     return HealthResponse(
-        status="healthy",
+        status=status,
         version="0.1.0",
         environment=settings.env,
+        checks=checks,
     )
 
 
@@ -102,7 +128,7 @@ async def handle_triage_completed(request: Request, envelope: PushEnvelope):
 
 @app.post("/api/approve", response_model=ApprovalResponse)
 @limiter.limit(APPROVE_RATE_LIMIT)
-async def approve_triage(request: Request, body: ApprovalRequest):
+async def approve_triage(request: Request, body: ApprovalRequest, user: dict = Depends(verify_firebase_token)):
     """Clinician approval or rejection of a triage result."""
     firestore: ApprovalFirestore = app.state.firestore
     pubsub: ApprovalPubSub = app.state.pubsub

@@ -5,7 +5,8 @@ import json
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from src.config import get_settings
 from src.logging_config import configure_logging
@@ -35,9 +36,38 @@ async def lifespan(application: FastAPI):
 app = FastAPI(title="Sentinel-Health Audit Consumer", version="0.1.0", lifespan=lifespan)
 
 
+# Global exception handler
+async def _generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
+app.add_exception_handler(Exception, _generic_exception_handler)
+
+
 @app.get("/health")
-async def health():
-    return {"status": "healthy", "version": "0.1.0"}
+async def health(request: Request):
+    settings = get_settings()
+    checks: dict[str, str] = {}
+    status = "healthy"
+
+    bq: AuditBigQuery = request.app.state.bigquery
+    try:
+        ok = await bq.health_check()
+        checks["bigquery"] = "ok" if ok else "fail"
+    except Exception:
+        logger.warning("BigQuery health check failed", exc_info=True)
+        checks["bigquery"] = "fail"
+
+    if checks.get("bigquery") == "fail":
+        status = "degraded"
+
+    return {
+        "status": status,
+        "version": "0.1.0",
+        "environment": settings.env,
+        "checks": checks,
+    }
 
 
 @app.post("/push/audit-event")
@@ -46,8 +76,9 @@ async def handle_audit_event(envelope: PushEnvelope):
     try:
         raw = base64.b64decode(envelope.message.data)
         doc = json.loads(raw)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid message payload: {exc}") from exc
+    except Exception:
+        logger.exception("Invalid message payload in audit event")
+        raise HTTPException(status_code=400, detail="Invalid message payload")
 
     if "encounter_id" not in doc:
         raise HTTPException(status_code=400, detail="Missing encounter_id in audit event")

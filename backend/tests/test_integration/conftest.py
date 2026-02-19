@@ -1,6 +1,8 @@
 """Fixtures for integration tests that bridge the backend and approval-worker services."""
 
 import base64
+import importlib
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -9,22 +11,68 @@ from unittest.mock import AsyncMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-# ---------------------------------------------------------------------------
-# Path manipulation — make approval-worker and audit-consumer importable
-# ---------------------------------------------------------------------------
 _repo_root = Path(__file__).resolve().parents[3]
 
-_approval_worker_path = str(_repo_root / "approval-worker")
-if _approval_worker_path not in sys.path:
-    sys.path.insert(0, _approval_worker_path)
 
-_audit_consumer_path = str(_repo_root / "audit-consumer")
-if _audit_consumer_path not in sys.path:
-    sys.path.insert(0, _audit_consumer_path)
+def _load_approval_worker():
+    """Load the approval-worker app using sys.path manipulation with module cache isolation.
 
-from src.main import app as approval_app  # noqa: E402
-from src.services.firestore import ApprovalFirestore  # noqa: E402
-from src.services.pubsub import ApprovalPubSub  # noqa: E402
+    Both backend and approval-worker use 'src' as their package name, so we must
+    temporarily swap the sys.path and clear cached 'src' modules.
+    """
+    # Save current src modules
+    saved_modules = {k: v for k, v in sys.modules.items() if k == "src" or k.startswith("src.")}
+
+    # Remove cached src modules
+    for key in list(saved_modules.keys()):
+        del sys.modules[key]
+
+    # Temporarily add approval-worker to front of sys.path
+    approval_path = str(_repo_root / "approval-worker")
+    sys.path.insert(0, approval_path)
+
+    try:
+        import src.main as approval_main
+        import src.middleware.auth as approval_auth
+        import src.services.firestore as approval_firestore
+        import src.services.pubsub as approval_pubsub
+
+        # Capture references before restoring
+        result = {
+            "app": approval_main.app,
+            "verify_firebase_token": approval_auth.verify_firebase_token,
+            "ApprovalFirestore": approval_firestore.ApprovalFirestore,
+            "ApprovalPubSub": approval_pubsub.ApprovalPubSub,
+        }
+    finally:
+        # Remove approval-worker src modules from cache
+        for key in list(sys.modules.keys()):
+            if key == "src" or key.startswith("src."):
+                del sys.modules[key]
+
+        # Restore original src modules
+        sys.modules.update(saved_modules)
+
+        # Remove approval-worker from sys.path
+        if approval_path in sys.path:
+            sys.path.remove(approval_path)
+
+    return result
+
+
+# Lazy-loaded to avoid import collision at collection time
+_approval_refs = None
+
+
+def _get_approval_refs():
+    global _approval_refs
+    if _approval_refs is None:
+        _approval_refs = _load_approval_worker()
+    return _approval_refs
+
+
+async def _mock_firebase_user():
+    return {"uid": "test-user-001", "email": "test@example.com"}
 
 
 # ---------------------------------------------------------------------------
@@ -60,13 +108,7 @@ def triage_completed_event():
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def push_envelope_data():
-    """Factory that converts a dict into Pub/Sub push POST body format.
-
-    Usage::
-
-        body = push_envelope_data(some_event_dict)
-        response = await client.post("/push/triage-completed", json=body)
-    """
+    """Factory that converts a dict into Pub/Sub push POST body format."""
 
     def _factory(data: dict) -> dict:
         encoded = base64.b64encode(json.dumps(data).encode("utf-8")).decode("utf-8")
@@ -88,7 +130,8 @@ def push_envelope_data():
 @pytest.fixture
 def mock_approval_firestore():
     """AsyncMock for the approval-worker's Firestore service."""
-    store = AsyncMock(spec=ApprovalFirestore)
+    refs = _get_approval_refs()
+    store = AsyncMock(spec=refs["ApprovalFirestore"])
     store.write_approval_entry.return_value = "approval_queue/enc-integration-001"
     store.update_approval_status.return_value = None
     store.update_triage_session_status.return_value = None
@@ -112,6 +155,7 @@ def mock_approval_firestore():
         },
         "audit_ref": "triage_sessions/enc-integration-001/audit/sentinel",
     }
+    store.health_check.return_value = True
     store.close.return_value = None
     return store
 
@@ -119,8 +163,10 @@ def mock_approval_firestore():
 @pytest.fixture
 def mock_approval_pubsub():
     """AsyncMock for the approval-worker's Pub/Sub service."""
-    pub = AsyncMock(spec=ApprovalPubSub)
+    refs = _get_approval_refs()
+    pub = AsyncMock(spec=refs["ApprovalPubSub"])
     pub.publish_triage_approved.return_value = None
+    pub.publish_classifier_feedback.return_value = None
     return pub
 
 
@@ -130,8 +176,12 @@ def mock_approval_pubsub():
 @pytest.fixture
 async def approval_client(mock_approval_firestore, mock_approval_pubsub):
     """httpx AsyncClient for the approval-worker app with mocked Firestore and Pub/Sub."""
-    approval_app.state.firestore = mock_approval_firestore
-    approval_app.state.pubsub = mock_approval_pubsub
-    transport = ASGITransport(app=approval_app)
+    refs = _get_approval_refs()
+    app = refs["app"]
+    app.state.firestore = mock_approval_firestore
+    app.state.pubsub = mock_approval_pubsub
+    app.dependency_overrides[refs["verify_firebase_token"]] = _mock_firebase_user
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+    app.dependency_overrides.clear()

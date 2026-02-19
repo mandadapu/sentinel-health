@@ -37,11 +37,16 @@ def sample_triage_message():
 
 @pytest.fixture
 async def client(mock_firestore, mock_pubsub):
+    from tests.conftest import _mock_firebase_user
+    from src.middleware.auth import verify_firebase_token
+
     app.state.firestore = mock_firestore
     app.state.pubsub = mock_pubsub
+    app.dependency_overrides[verify_firebase_token] = _mock_firebase_user
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+    app.dependency_overrides.clear()
 
 
 class TestHealth:

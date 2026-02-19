@@ -1,8 +1,13 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+from src.middleware.auth import verify_firebase_token
 from src.services.firestore import ApprovalFirestore
 from src.services.pubsub import ApprovalPubSub
+
+
+async def _mock_firebase_user():
+    return {"uid": "test-user-001", "email": "test@example.com"}
 
 
 @pytest.fixture
@@ -18,6 +23,7 @@ def mock_firestore():
         "triage_result": {"level": "Semi-Urgent", "confidence": 0.88},
         "sentinel_check": {"passed": True},
     }
+    store.health_check.return_value = True
     store.close.return_value = None
     return store
 

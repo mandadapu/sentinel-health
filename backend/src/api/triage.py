@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.graph.state import AgentState
+from src.middleware.auth import verify_firebase_token
 from src.middleware.rate_limit import limiter, TRIAGE_RATE_LIMIT
 from src.models import TriageRequest, TriageResultResponse
 
@@ -23,7 +24,7 @@ def set_dependencies(pipeline, audit_writer, firestore) -> None:
 
 @router.post("/triage", response_model=TriageResultResponse)
 @limiter.limit(TRIAGE_RATE_LIMIT)
-async def run_triage(request: Request, body: TriageRequest) -> TriageResultResponse:
+async def run_triage(request: Request, body: TriageRequest, user: dict = Depends(verify_firebase_token)) -> TriageResultResponse:
     """Run the full triage pipeline on an encounter."""
     if _pipeline is None:
         raise HTTPException(status_code=503, detail="Pipeline not initialized")

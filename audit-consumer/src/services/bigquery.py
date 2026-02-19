@@ -68,6 +68,19 @@ class AuditBigQuery:
         else:
             logger.info("Flushed %d rows to BigQuery", len(rows))
 
+    async def health_check(self) -> bool:
+        """Verify BigQuery connectivity with a lightweight query."""
+        if not self._client:
+            return False
+        try:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(
+                None, lambda: list(self._client.query("SELECT 1").result())
+            )
+            return True
+        except Exception:
+            return False
+
     async def close(self) -> None:
         """Flush remaining rows and cancel periodic task."""
         if self._flush_task:

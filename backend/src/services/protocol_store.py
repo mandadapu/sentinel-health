@@ -48,6 +48,17 @@ class ProtocolStore:
         )
         return [dict(r) for r in rows]
 
+    async def health_check(self) -> bool:
+        """Verify Cloud SQL connectivity with a lightweight query."""
+        if not self._pool:
+            return False
+        try:
+            async with self._pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
+            return True
+        except Exception:
+            return False
+
     async def close(self) -> None:
         if self._pool:
             await self._pool.close()

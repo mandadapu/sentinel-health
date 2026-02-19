@@ -63,5 +63,15 @@ class ApprovalFirestore:
             }
         )
 
+    async def health_check(self) -> bool:
+        """Verify Firestore connectivity with a lightweight read."""
+        try:
+            query = self._client.collection(self._collection).limit(1)
+            async for _ in query.stream():
+                pass
+            return True
+        except Exception:
+            return False
+
     async def close(self) -> None:
         self._client.close()

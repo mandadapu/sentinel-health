@@ -80,5 +80,13 @@ class SidecarClient:
                 }
             )
 
+    async def health_check(self) -> bool:
+        """Check sidecar /health endpoint."""
+        try:
+            response = await self._client.get("/health")
+            return response.status_code == 200
+        except Exception:
+            return False
+
     async def close(self) -> None:
         await self._client.aclose()

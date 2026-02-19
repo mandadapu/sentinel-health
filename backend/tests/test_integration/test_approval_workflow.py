@@ -20,20 +20,45 @@ from unittest.mock import AsyncMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-# ---------------------------------------------------------------------------
-# Path manipulation — make sibling services importable
-# ---------------------------------------------------------------------------
 _repo_root = Path(__file__).resolve().parents[3]
 
-_approval_worker_path = str(_repo_root / "approval-worker")
-if _approval_worker_path not in sys.path:
-    sys.path.insert(0, _approval_worker_path)
 
-_audit_consumer_path = str(_repo_root / "audit-consumer")
-if _audit_consumer_path not in sys.path:
-    sys.path.insert(0, _audit_consumer_path)
+def _load_audit_consumer():
+    """Load audit-consumer modules with sys.modules isolation."""
+    saved_modules = {k: v for k, v in sys.modules.items() if k == "src" or k.startswith("src.")}
+    for key in list(saved_modules.keys()):
+        del sys.modules[key]
 
-from src.services.bigquery import AuditBigQuery  # noqa: E402
+    audit_path = str(_repo_root / "audit-consumer")
+    sys.path.insert(0, audit_path)
+
+    try:
+        import src.main as audit_main
+        import src.services.bigquery as audit_bq
+
+        result = {
+            "app": audit_main.app,
+            "AuditBigQuery": audit_bq.AuditBigQuery,
+        }
+    finally:
+        for key in list(sys.modules.keys()):
+            if key == "src" or key.startswith("src."):
+                del sys.modules[key]
+        sys.modules.update(saved_modules)
+        if audit_path in sys.path:
+            sys.path.remove(audit_path)
+
+    return result
+
+
+_audit_refs = None
+
+
+def _get_audit_refs():
+    global _audit_refs
+    if _audit_refs is None:
+        _audit_refs = _load_audit_consumer()
+    return _audit_refs
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +132,7 @@ class TestEndToEndTriageToApproval:
             "approved",
             "dr-integration-reviewer",
             "Triage assessment is accurate",
+            None,
         )
         mock_approval_firestore.update_triage_session_status.assert_called_once_with(
             "enc-integration-001",
@@ -155,6 +181,7 @@ class TestEndToEndTriageToApproval:
             "rejected",
             "dr-integration-reviewer",
             "Triage level should be Urgent, not Semi-Urgent",
+            None,
         )
         mock_approval_firestore.update_triage_session_status.assert_called_once_with(
             "enc-integration-001",
@@ -404,7 +431,8 @@ class TestAuditConsumerBatchFlush:
     @pytest.fixture
     def mock_bigquery(self):
         """AsyncMock for AuditBigQuery."""
-        bq = AsyncMock(spec=AuditBigQuery)
+        refs = _get_audit_refs()
+        bq = AsyncMock(spec=refs["AuditBigQuery"])
         bq.insert.return_value = None
         bq.flush.return_value = None
         bq.close.return_value = None
@@ -413,24 +441,8 @@ class TestAuditConsumerBatchFlush:
     @pytest.fixture
     async def audit_client(self, mock_bigquery):
         """httpx AsyncClient wired to the audit-consumer app with mocked BigQuery."""
-        # Import here to avoid polluting module scope with audit-consumer's src.main
-        # (the approval-worker's src.main was already imported at module level)
-        from importlib import import_module
-
-        audit_main = import_module("src.main", package=None)
-        # The audit consumer also has an `app` at module level, but since
-        # approval-worker's src.main was imported first, we need to reload
-        # from the audit-consumer path. Use the direct path import instead.
-        import importlib
-        import importlib.util
-
-        spec = importlib.util.spec_from_file_location(
-            "audit_consumer_main",
-            str(_repo_root / "audit-consumer" / "src" / "main.py"),
-        )
-        audit_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(audit_module)
-        audit_app = audit_module.app
+        refs = _get_audit_refs()
+        audit_app = refs["app"]
 
         audit_app.state.bigquery = mock_bigquery
         transport = ASGITransport(app=audit_app)

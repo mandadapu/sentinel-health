@@ -6,6 +6,11 @@ from httpx import ASGITransport, AsyncClient
 
 from src.api import triage
 from src.main import app
+from src.middleware.auth import verify_firebase_token
+
+
+async def _mock_firebase_user():
+    return {"uid": "test-user-001", "email": "test@example.com"}
 
 
 @pytest.fixture
@@ -58,7 +63,9 @@ def mock_pipeline(sample_extracted_data, sample_triage_decision, sample_sentinel
 @pytest_asyncio.fixture
 async def client(mock_pipeline, mock_audit_writer, mock_firestore):
     triage.set_dependencies(mock_pipeline, mock_audit_writer, mock_firestore)
+    app.dependency_overrides[verify_firebase_token] = _mock_firebase_user
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+    app.dependency_overrides.clear()
     triage.set_dependencies(None, None, None)
