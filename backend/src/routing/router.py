@@ -23,16 +23,19 @@ class CategoryConfig:
 
 
 CATEGORY_ROUTING: dict[str, CategoryConfig] = {
-    "routine_vitals":            CategoryConfig("claude-haiku-4-5-20241022",  0.85, False),
-    "chronic_management":        CategoryConfig("claude-haiku-4-5-20241022",  0.80, False),
-    "symptom_assessment":        CategoryConfig("claude-sonnet-4-5-20250929", 0.75, False),
-    "medication_review":         CategoryConfig("claude-sonnet-4-5-20250929", 0.80, True),
-    "diagnostic_interpretation": CategoryConfig("claude-sonnet-4-5-20250929", 0.80, False),
-    "acute_presentation":        CategoryConfig("claude-sonnet-4-5-20250929", 0.70, True),
-    "critical_emergency":        CategoryConfig("claude-opus-4-6-20250929",   0.50, True),
-    "mental_health":             CategoryConfig("claude-sonnet-4-5-20250929", 0.75, True),
-    "pediatric":                 CategoryConfig("claude-sonnet-4-5-20250929", 0.75, True),
-    "surgical_consult":          CategoryConfig("claude-sonnet-4-5-20250929", 0.80, False),
+    # Haiku tier — routine, low-risk
+    "routine_vitals":            CategoryConfig("claude-haiku-4-5-20241022",  0.65, False),
+    "chronic_management":        CategoryConfig("claude-haiku-4-5-20241022",  0.60, False),
+    # Sonnet tier — moderate complexity
+    "symptom_assessment":        CategoryConfig("claude-sonnet-4-5-20250929", 0.55, True),
+    "medication_review":         CategoryConfig("claude-sonnet-4-5-20250929", 0.50, True),
+    "diagnostic_interpretation": CategoryConfig("claude-sonnet-4-5-20250929", 0.45, True),
+    # Opus tier — always Opus, high-acuity (threshold irrelevant, already top tier)
+    "acute_presentation":        CategoryConfig("claude-opus-4-6-20250929",   0.0, True),
+    "critical_emergency":        CategoryConfig("claude-opus-4-6-20250929",   0.0, True),
+    "mental_health":             CategoryConfig("claude-opus-4-6-20250929",   0.0, True),
+    "pediatric":                 CategoryConfig("claude-opus-4-6-20250929",   0.0, True),
+    "surgical_consult":          CategoryConfig("claude-opus-4-6-20250929",   0.0, True),
 }
 
 

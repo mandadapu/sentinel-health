@@ -124,6 +124,18 @@ variable "confidence_threshold" {
   default     = "0.85"
 }
 
+variable "cloudsql_dsn" {
+  description = "PostgreSQL DSN for Cloud SQL (e.g. postgresql://user:pass@/dbname?host=/cloudsql/project:region:instance)"
+  type        = string
+  sensitive   = true
+}
+
+variable "bigquery_dataset" {
+  description = "BigQuery dataset ID for audit trail"
+  type        = string
+  default     = "sentinel_audit"
+}
+
 variable "cors_allowed_origins" {
   description = "Comma-separated list of allowed CORS origins"
   type        = string

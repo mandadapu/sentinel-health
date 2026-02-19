@@ -62,20 +62,21 @@ class SidecarClient:
             response.raise_for_status()
             return SidecarValidationResult(response.json())
         except Exception:
-            logger.exception(
-                "Sidecar validation failed for %s/%s — passing through",
+            logger.critical(
+                "HIPAA ALERT: Sidecar unavailable for %s/%s — blocking unvalidated content",
                 encounter_id,
                 node_name,
+                exc_info=True,
             )
-            # Fail-open: return original content with a warning flag
+            # Fail-closed: reject unvalidated content to prevent PHI/PII leaks
             return SidecarValidationResult(
                 {
-                    "validated": True,
-                    "content": content,
+                    "validated": False,
+                    "content": "",
                     "compliance_flags": ["SIDECAR_UNAVAILABLE"],
                     "redactions": [],
-                    "errors": [],
-                    "should_retry": False,
+                    "errors": ["Sidecar validation unavailable — content blocked"],
+                    "should_retry": True,
                     "latency_ms": 0.0,
                 }
             )

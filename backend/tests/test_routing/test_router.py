@@ -85,19 +85,19 @@ class TestConfidenceEscalation:
     """Low confidence → escalate one tier."""
 
     def test_haiku_escalates_to_sonnet(self, router):
-        # routine_vitals: threshold 0.85, default haiku
+        # routine_vitals: threshold 0.65, default haiku
         result = router.route(
             "Routine check",
-            {"category": "routine_vitals", "confidence": 0.80},
+            {"category": "routine_vitals", "confidence": 0.60},
         )
         assert result["selected_model"] == "claude-sonnet-4-5-20250929"
-        assert "0.80" in result["escalation_reason"]
+        assert "0.60" in result["escalation_reason"]
 
     def test_sonnet_escalates_to_opus(self, router):
-        # symptom_assessment: threshold 0.75, default sonnet
+        # symptom_assessment: threshold 0.55, default sonnet
         result = router.route(
             "Patient reports symptoms",
-            {"category": "symptom_assessment", "confidence": 0.70},
+            {"category": "symptom_assessment", "confidence": 0.50},
         )
         assert result["selected_model"] == "claude-opus-4-6-20250929"
 
@@ -145,8 +145,9 @@ class TestSafetyOverrideCategories:
 
     @pytest.mark.parametrize(
         "category",
-        ["medication_review", "acute_presentation", "critical_emergency",
-         "mental_health", "pediatric"],
+        ["symptom_assessment", "medication_review", "diagnostic_interpretation",
+         "acute_presentation", "critical_emergency",
+         "mental_health", "pediatric", "surgical_consult"],
     )
     def test_safety_categories_at_least_sonnet(self, router, category):
         result = router.route(
@@ -156,6 +157,34 @@ class TestSafetyOverrideCategories:
         model_idx = MODEL_TIERS.index(result["selected_model"])
         sonnet_idx = MODEL_TIERS.index("claude-sonnet-4-5-20250929")
         assert model_idx >= sonnet_idx
+
+
+class TestOpusDefaultCategories:
+    """Categories that always route to Opus regardless of confidence."""
+
+    @pytest.mark.parametrize(
+        "category",
+        ["acute_presentation", "critical_emergency", "mental_health",
+         "pediatric", "surgical_consult"],
+    )
+    def test_always_opus(self, router, category):
+        result = router.route(
+            "Standard encounter",
+            {"category": category, "confidence": 0.99},
+        )
+        assert result["selected_model"] == "claude-opus-4-6-20250929"
+
+    @pytest.mark.parametrize(
+        "category",
+        ["acute_presentation", "critical_emergency", "mental_health",
+         "pediatric", "surgical_consult"],
+    )
+    def test_opus_even_at_low_confidence(self, router, category):
+        result = router.route(
+            "Standard encounter",
+            {"category": category, "confidence": 0.30},
+        )
+        assert result["selected_model"] == "claude-opus-4-6-20250929"
 
 
 class TestRoutingMetadataFields:

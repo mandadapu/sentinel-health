@@ -173,6 +173,8 @@ module "cloud_run" {
   approval_worker_sa_email     = module.iam.approval_worker_sa_email
   audit_consumer_sa_email      = module.iam.audit_consumer_sa_email
   cloudsql_instance_connection = module.cloud_sql.instance_connection_name
+  cloudsql_dsn                 = var.cloudsql_dsn
+  bigquery_dataset             = module.bigquery.dataset_id
 
   # Production scaling
   orchestrator_min_instances = 1

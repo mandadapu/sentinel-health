@@ -30,6 +30,12 @@ variable "notification_email" {
   type        = string
 }
 
+variable "cloudsql_dsn" {
+  description = "PostgreSQL DSN for Cloud SQL (populated from Secret Manager out-of-band)"
+  type        = string
+  sensitive   = true
+}
+
 variable "domain_name" {
   description = "Custom domain for the production load balancer"
   type        = string

@@ -114,6 +114,16 @@ resource "google_cloud_run_v2_service" "orchestrator" {
       }
 
       env {
+        name = "ANTHROPIC_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = "anthropic-api-key"
+            version = "latest"
+          }
+        }
+      }
+
+      env {
         name = "VOYAGE_API_KEY"
         value_source {
           secret_key_ref {
@@ -121,6 +131,11 @@ resource "google_cloud_run_v2_service" "orchestrator" {
             version = "latest"
           }
         }
+      }
+
+      env {
+        name  = "CLOUDSQL_DSN"
+        value = var.cloudsql_dsn
       }
 
       volume_mounts {
@@ -188,6 +203,8 @@ resource "google_cloud_run_v2_service" "approval_worker" {
   name     = "${local.name_prefix}-approval-worker"
   location = var.region
   project  = var.project_id
+
+  ingress = var.restrict_ingress ? "INGRESS_TRAFFIC_INTERNAL_AND_CLOUD_LOAD_BALANCING" : "INGRESS_TRAFFIC_ALL"
 
   template {
     service_account = var.approval_worker_sa_email
@@ -271,6 +288,8 @@ resource "google_cloud_run_v2_service" "audit_consumer" {
   location = var.region
   project  = var.project_id
 
+  ingress = var.restrict_ingress ? "INGRESS_TRAFFIC_INTERNAL_AND_CLOUD_LOAD_BALANCING" : "INGRESS_TRAFFIC_ALL"
+
   template {
     service_account = var.audit_consumer_sa_email
     timeout         = "60s"
@@ -308,6 +327,11 @@ resource "google_cloud_run_v2_service" "audit_consumer" {
       env {
         name  = "GCP_PROJECT_ID"
         value = var.project_id
+      }
+
+      env {
+        name  = "BIGQUERY_DATASET"
+        value = var.bigquery_dataset
       }
 
       startup_probe {
