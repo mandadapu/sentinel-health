@@ -7,12 +7,19 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from src.config import get_settings
 from src.logging_config import configure_logging
 from src.models import PushEnvelope
 from src.services.bigquery import AuditBigQuery
 from src.transform import transform_audit_event, transform_classifier_feedback
+
+limiter = Limiter(key_func=get_remote_address)
+PUSH_RATE_LIMIT = "200/minute"
+HEALTH_RATE_LIMIT = "200/minute"
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +42,10 @@ async def lifespan(application: FastAPI):
 
 app = FastAPI(title="Sentinel-Health Audit Consumer", version="0.1.0", lifespan=lifespan)
 
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 # Global exception handler
 async def _generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -46,6 +57,7 @@ app.add_exception_handler(Exception, _generic_exception_handler)
 
 
 @app.get("/health")
+@limiter.limit(HEALTH_RATE_LIMIT)
 async def health(request: Request):
     settings = get_settings()
     checks: dict[str, str] = {}
@@ -71,7 +83,8 @@ async def health(request: Request):
 
 
 @app.post("/push/audit-event")
-async def handle_audit_event(envelope: PushEnvelope):
+@limiter.limit(PUSH_RATE_LIMIT)
+async def handle_audit_event(request: Request, envelope: PushEnvelope):
     """Receive a Pub/Sub push message containing an audit event."""
     try:
         raw = base64.b64decode(envelope.message.data)

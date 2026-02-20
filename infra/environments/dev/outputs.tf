@@ -37,9 +37,22 @@ output "approval_worker_url" {
   value       = module.cloud_run.approval_worker_url
 }
 
+output "audit_consumer_url" {
+  description = "Audit Consumer Cloud Run service URL"
+  value       = module.cloud_run.audit_consumer_url
+}
+
 output "frontend_url" {
   description = "Frontend Cloud Run service URL"
   value       = module.cloud_run.frontend_url
+}
+
+# ---------------------------------------------------------------------------
+# Migration Job
+# ---------------------------------------------------------------------------
+output "migration_job_name" {
+  description = "Database migration Cloud Run Job name"
+  value       = module.migration_job.job_name
 }
 
 # ---------------------------------------------------------------------------

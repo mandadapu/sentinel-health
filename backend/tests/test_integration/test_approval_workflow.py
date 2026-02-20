@@ -308,7 +308,7 @@ class TestDoubleApprovalPrevention:
         }
         response = await approval_client.post("/api/approve", json=second_request)
         assert response.status_code == 409
-        assert "already processed" in response.json()["detail"].lower()
+        assert "invalid transition" in response.json()["detail"].lower()
 
     @pytest.mark.asyncio
     async def test_reject_after_approval_returns_409(
@@ -350,7 +350,7 @@ class TestDoubleApprovalPrevention:
         }
         response = await approval_client.post("/api/approve", json=reject_request)
         assert response.status_code == 409
-        assert "already processed" in response.json()["detail"].lower()
+        assert "invalid transition" in response.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------

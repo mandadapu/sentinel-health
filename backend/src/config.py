@@ -74,6 +74,16 @@ class Settings(BaseSettings):
                 raise ValueError(
                     f"VOYAGE_API_KEY is required in {self.env} environment"
                 )
+            origins = self.cors_origins
+            if "*" in origins:
+                raise ValueError(
+                    f"Wildcard CORS origin '*' is not allowed in {self.env} environment"
+                )
+            for origin in origins:
+                if not origin.startswith("https://"):
+                    raise ValueError(
+                        f"CORS origin '{origin}' must use HTTPS in {self.env} environment"
+                    )
         return self
 
 

@@ -133,15 +133,21 @@ async def approve_triage(request: Request, body: ApprovalRequest, user: dict = D
     firestore: ApprovalFirestore = app.state.firestore
     pubsub: ApprovalPubSub = app.state.pubsub
 
-    # Verify the approval entry exists
+    # Verify the approval entry exists and validate state transition
     entry = await firestore.get_approval(body.encounter_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="Approval entry not found")
 
-    if entry.get("status") != "pending_approval":
+    current_status = entry.get("status", "")
+    valid_transitions = {
+        "pending_approval": {"approved", "rejected"},
+    }
+    allowed = valid_transitions.get(current_status, set())
+
+    if body.status not in allowed:
         raise HTTPException(
             status_code=409,
-            detail=f"Entry already processed (status: {entry.get('status')})",
+            detail=f"Invalid transition: {current_status} → {body.status}",
         )
 
     await firestore.update_approval_status(

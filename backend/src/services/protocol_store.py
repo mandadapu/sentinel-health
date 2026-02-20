@@ -1,9 +1,13 @@
+import asyncio
 import logging
 from typing import Any
 
 import asyncpg
 
 logger = logging.getLogger(__name__)
+
+MAX_CONNECT_RETRIES = 3
+CONNECT_BACKOFF_BASE = 2.0
 
 
 class ProtocolStore:
@@ -14,10 +18,25 @@ class ProtocolStore:
         self._pool: asyncpg.Pool | None = None
 
     async def connect(self) -> None:
-        self._pool = await asyncpg.create_pool(self._dsn, min_size=2, max_size=10)
-        async with self._pool.acquire() as conn:
-            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        logger.info("ProtocolStore connected to Cloud SQL")
+        for attempt in range(1, MAX_CONNECT_RETRIES + 1):
+            try:
+                self._pool = await asyncpg.create_pool(self._dsn, min_size=2, max_size=10)
+                async with self._pool.acquire() as conn:
+                    await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+                logger.info("ProtocolStore connected to Cloud SQL")
+                return
+            except Exception:
+                if attempt == MAX_CONNECT_RETRIES:
+                    raise
+                delay = CONNECT_BACKOFF_BASE ** attempt
+                logger.warning(
+                    "Cloud SQL connection attempt %d/%d failed — retrying in %.1fs",
+                    attempt,
+                    MAX_CONNECT_RETRIES,
+                    delay,
+                    exc_info=True,
+                )
+                await asyncio.sleep(delay)
 
     async def retrieve(
         self,

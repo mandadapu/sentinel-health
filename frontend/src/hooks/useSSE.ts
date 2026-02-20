@@ -5,6 +5,7 @@ type SSEStatus = "connecting" | "connected" | "disconnected";
 interface SSEEvent {
   type: string;
   data: unknown;
+  id: string | null;
   timestamp: number;
 }
 
@@ -12,6 +13,7 @@ export function useSSE(url: string, enabled = true) {
   const [status, setStatus] = useState<SSEStatus>("disconnected");
   const [lastEvent, setLastEvent] = useState<SSEEvent | null>(null);
   const retryRef = useRef(0);
+  const lastEventIdRef = useRef<string | null>(null);
   const maxRetries = 5;
   const baseDelay = 1000;
 
@@ -26,7 +28,14 @@ export function useSSE(url: string, enabled = true) {
 
     function connect() {
       setStatus("connecting");
-      es = new EventSource(url);
+
+      // Append last_event_id on reconnect so the server can resume
+      const connectUrl =
+        lastEventIdRef.current
+          ? `${url}${url.includes("?") ? "&" : "?"}last_event_id=${lastEventIdRef.current}`
+          : url;
+
+      es = new EventSource(connectUrl);
 
       es.onopen = () => {
         setStatus("connected");
@@ -34,11 +43,14 @@ export function useSSE(url: string, enabled = true) {
       };
 
       es.onmessage = (event) => {
+        if (event.lastEventId) {
+          lastEventIdRef.current = event.lastEventId;
+        }
         try {
           const data = JSON.parse(event.data) as unknown;
-          setLastEvent({ type: event.type, data, timestamp: Date.now() });
+          setLastEvent({ type: event.type, data, id: event.lastEventId, timestamp: Date.now() });
         } catch {
-          setLastEvent({ type: event.type, data: event.data, timestamp: Date.now() });
+          setLastEvent({ type: event.type, data: event.data, id: event.lastEventId, timestamp: Date.now() });
         }
       };
 

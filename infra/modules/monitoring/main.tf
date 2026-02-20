@@ -503,6 +503,60 @@ resource "google_monitoring_alert_policy" "slo_burn_rate_latency" {
 }
 
 # ---------------------------------------------------------------------------
+# Log-based metric: approval entries pending beyond SLA
+# ---------------------------------------------------------------------------
+resource "google_logging_metric" "approval_sla_overdue" {
+  project     = var.project_id
+  name        = "${local.name_prefix}-approval-sla-overdue"
+  description = "Count of log entries indicating overdue approval queue items"
+  filter      = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${var.cloud_run_service_names["approval_worker"]}\" AND jsonPayload.message=~\"approval.*overdue|sla.*exceeded|pending.*expired\""
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+  }
+}
+
+resource "google_monitoring_alert_policy" "approval_sla_overdue" {
+  project      = var.project_id
+  display_name = "${local.name_prefix} Approval SLA Overdue"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Overdue approval entries detected"
+
+    condition_threshold {
+      filter          = "metric.type = \"logging.googleapis.com/user/${google_logging_metric.approval_sla_overdue.name}\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_SUM"
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = [google_monitoring_notification_channel.email.id]
+
+  documentation {
+    content   = "Approval queue has entries pending beyond the SLA deadline. HIPAA requires timely triage review. Investigate the approval worker dashboard and check for clinician staffing."
+    mime_type = "text/markdown"
+  }
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+
+  user_labels = local.labels
+}
+
+# ---------------------------------------------------------------------------
 # Dashboard — operational overview
 # ---------------------------------------------------------------------------
 resource "google_monitoring_dashboard" "main" {
