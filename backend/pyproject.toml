@@ -21,6 +21,7 @@ dependencies = [
     "voyageai>=0.3.0",
     "google-cloud-aiplatform>=1.71.0",
     "firebase-admin>=6.6.0",
+    "tenacity>=9.0.0",
     "python-json-logger>=3.0.0",
     "alembic>=1.13.0",
     "sqlalchemy>=2.0.0",

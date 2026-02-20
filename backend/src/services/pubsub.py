@@ -1,9 +1,13 @@
 import asyncio
 import json
+import logging
 
 from google.cloud.pubsub_v1 import PublisherClient
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from src.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class PubSubService:
@@ -18,18 +22,38 @@ class PubSubService:
             f"{settings.pubsub_triage_completed_topic}"
         )
 
-    async def publish_audit_event(self, data: dict) -> None:
+    async def _publish(self, topic: str, data: dict, timeout: int) -> None:
         loop = asyncio.get_running_loop()
         future = self._publisher.publish(
-            self._audit_topic,
+            topic,
             json.dumps(data).encode("utf-8"),
         )
-        await loop.run_in_executor(None, future.result, 5)
+        await loop.run_in_executor(None, future.result, timeout)
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=0.5, min=0.5, max=4),
+        retry=retry_if_exception_type(Exception),
+        reraise=True,
+        before_sleep=lambda rs: logger.warning(
+            "Retrying Pub/Sub audit publish (attempt %d): %s",
+            rs.attempt_number,
+            rs.outcome.exception(),
+        ),
+    )
+    async def publish_audit_event(self, data: dict) -> None:
+        await self._publish(self._audit_topic, data, timeout=5)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=0.5, min=0.5, max=4),
+        retry=retry_if_exception_type(Exception),
+        reraise=True,
+        before_sleep=lambda rs: logger.warning(
+            "Retrying Pub/Sub triage-completed publish (attempt %d): %s",
+            rs.attempt_number,
+            rs.outcome.exception(),
+        ),
+    )
     async def publish_triage_completed(self, data: dict) -> None:
-        loop = asyncio.get_running_loop()
-        future = self._publisher.publish(
-            self._triage_topic,
-            json.dumps(data).encode("utf-8"),
-        )
-        await loop.run_in_executor(None, future.result, 10)
+        await self._publish(self._triage_topic, data, timeout=10)

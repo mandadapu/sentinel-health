@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -103,8 +102,18 @@ class AuditWriter:
             cost_usd=cost_usd,
         )
 
-        # Async fire-and-forget to Pub/Sub
-        asyncio.create_task(self._safe_publish(audit_doc))
+        # Await Pub/Sub publish — surface failures for HIPAA audit integrity
+        try:
+            await self._pubsub.publish_audit_event(audit_doc)
+        except Exception:
+            logger.critical(
+                "HIPAA ALERT: Failed to publish audit event to Pub/Sub for %s/%s "
+                "— Firestore record exists at %s but BigQuery sync will be delayed",
+                encounter_id,
+                node_name,
+                doc_path,
+                exc_info=True,
+            )
 
         return doc_path
 
@@ -126,8 +135,3 @@ class AuditWriter:
         }
         await self._pubsub.publish_triage_completed(event)
 
-    async def _safe_publish(self, data: dict) -> None:
-        try:
-            await self._pubsub.publish_audit_event(data)
-        except Exception:
-            logger.exception("Failed to publish audit event to Pub/Sub")

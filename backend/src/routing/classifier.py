@@ -1,6 +1,9 @@
 import json
+import logging
 
 from src.services.anthropic_client import AnthropicClient
+
+logger = logging.getLogger(__name__)
 
 CLINICAL_CATEGORIES = [
     "routine_vitals",
@@ -28,21 +31,47 @@ class ClinicalClassifier:
         self._client = client
         self._model = model
 
-    async def classify(self, encounter_text: str) -> dict:
-        response = await self._client.complete(
-            model=self._model,
-            system_prompt=CLASSIFIER_SYSTEM_PROMPT.format(
-                categories=", ".join(CLINICAL_CATEGORIES)
-            ),
-            user_message=encounter_text,
-            max_tokens=256,
-            temperature=0.0,
-        )
-        parsed = json.loads(response["content"])
-        return {
-            "category": parsed["category"],
-            "confidence": parsed["confidence"],
-            "reason": parsed["reason"],
-            "classifier_tokens": response["tokens"],
-            "classifier_cost": response["cost_usd"],
-        }
+    async def classify(self, encounter_text: str, timeout: float = 5.0) -> dict:
+        try:
+            response = await self._client.complete(
+                model=self._model,
+                system_prompt=CLASSIFIER_SYSTEM_PROMPT.format(
+                    categories=", ".join(CLINICAL_CATEGORIES)
+                ),
+                user_message=encounter_text,
+                max_tokens=256,
+                temperature=0.0,
+                timeout=timeout,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Classifier call failed — falling back to default routing: %s", exc
+            )
+            return {
+                "category": "symptom_assessment",
+                "confidence": 0.0,
+                "reason": f"classifier_timeout: {type(exc).__name__}",
+                "classifier_tokens": {"in": 0, "out": 0},
+                "classifier_cost": 0.0,
+            }
+        try:
+            parsed = json.loads(response["content"])
+            return {
+                "category": parsed["category"],
+                "confidence": parsed["confidence"],
+                "reason": parsed["reason"],
+                "classifier_tokens": response["tokens"],
+                "classifier_cost": response["cost_usd"],
+            }
+        except (json.JSONDecodeError, KeyError) as exc:
+            logger.error(
+                "Classifier JSON parse failed — falling back to default routing: %s",
+                exc,
+            )
+            return {
+                "category": "symptom_assessment",
+                "confidence": 0.0,
+                "reason": f"classifier_parse_error: {type(exc).__name__}",
+                "classifier_tokens": response["tokens"],
+                "classifier_cost": response["cost_usd"],
+            }

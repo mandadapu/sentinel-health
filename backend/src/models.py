@@ -1,7 +1,19 @@
+import re
 import uuid
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Patterns that indicate prompt injection attempts
+_INJECTION_PATTERNS = re.compile(
+    r"(?:ignore\s+(?:all\s+)?previous\s+instructions"
+    r"|you\s+are\s+now\s+(?:a\s+)?(?:different|new)\s+(?:ai|assistant|model)"
+    r"|system\s*:\s*you\s+are"
+    r"|<\s*(?:system|admin|root)\s*>"
+    r"|IGNORE\s+ALL\s+RULES"
+    r"|override\s+(?:safety|content)\s+(?:filter|policy))",
+    re.IGNORECASE,
+)
 
 
 class TriageRequest(BaseModel):
@@ -9,6 +21,13 @@ class TriageRequest(BaseModel):
     patient_id: str = Field(..., description="Encrypted patient reference")
     encounter_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     metadata: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("encounter_text")
+    @classmethod
+    def check_prompt_injection(cls, v: str) -> str:
+        if _INJECTION_PATTERNS.search(v):
+            raise ValueError("Input contains disallowed instruction patterns")
+        return v
 
 
 class TriageResultResponse(BaseModel):

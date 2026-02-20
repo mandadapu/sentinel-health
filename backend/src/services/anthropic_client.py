@@ -1,8 +1,12 @@
+import logging
 import time
 
+import httpx
 from anthropic import AsyncAnthropic
 
 from src.config import Settings
+
+logger = logging.getLogger(__name__)
 
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     "claude-haiku-4-5-20241022": (1.00, 5.00),
@@ -13,7 +17,11 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
 
 class AnthropicClient:
     def __init__(self, settings: Settings) -> None:
-        self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        self._client = AsyncAnthropic(
+            api_key=settings.anthropic_api_key,
+            max_retries=3,
+            timeout=httpx.Timeout(60.0, connect=5.0),
+        )
 
     async def complete(
         self,
@@ -22,6 +30,7 @@ class AnthropicClient:
         user_message: str,
         max_tokens: int = 4096,
         temperature: float = 0.0,
+        timeout: float | None = None,
     ) -> dict:
         start = time.monotonic()
         response = await self._client.messages.create(
@@ -30,6 +39,7 @@ class AnthropicClient:
             temperature=temperature,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
+            timeout=timeout,
         )
         duration_ms = int((time.monotonic() - start) * 1000)
 

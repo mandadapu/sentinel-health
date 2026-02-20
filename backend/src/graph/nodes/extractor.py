@@ -94,7 +94,16 @@ async def extractor_node(
 
         break
 
-    extracted = json.loads(response["content"])
+    try:
+        extracted = json.loads(response["content"])
+    except (json.JSONDecodeError, KeyError) as exc:
+        logger.error(
+            "Extractor JSON parse failed for %s — tripping circuit breaker: %s",
+            encounter_id,
+            exc,
+        )
+        compliance_flags.append("JSON_PARSE_FAILED")
+        extracted = {}
 
     audit_ref = await audit_writer.write_node_audit(
         encounter_id=encounter_id,
@@ -114,7 +123,7 @@ async def extractor_node(
         duration_ms=response["duration_ms"],
     )
 
-    return {
+    result: dict[str, Any] = {
         "fhir_data": extracted,
         "clinical_context": extracted,
         "compliance_flags": compliance_flags,
@@ -131,3 +140,9 @@ async def extractor_node(
             }
         ],
     }
+
+    if "JSON_PARSE_FAILED" in compliance_flags:
+        result["circuit_breaker_tripped"] = True
+        result["error"] = "Extractor failed to parse LLM output"
+
+    return result

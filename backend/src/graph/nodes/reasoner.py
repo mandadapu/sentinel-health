@@ -109,18 +109,34 @@ async def reasoner_node(
 
         break
 
-    decision = json.loads(response["content"])
-
-    triage_decision: TriageDecision = {
-        "level": decision["level"],
-        "confidence": decision["confidence"],
-        "reasoning_summary": decision["reasoning_summary"],
-        "recommended_actions": decision.get("recommended_actions", []),
-        "model_used": response["model"],
-        "routing_reason": state["routing_metadata"].get(
-            "escalation_reason", "default routing"
-        ),
-    }
+    try:
+        decision = json.loads(response["content"])
+        triage_decision: TriageDecision = {
+            "level": decision["level"],
+            "confidence": decision["confidence"],
+            "reasoning_summary": decision["reasoning_summary"],
+            "recommended_actions": decision.get("recommended_actions", []),
+            "model_used": response["model"],
+            "routing_reason": state["routing_metadata"].get(
+                "escalation_reason", "default routing"
+            ),
+        }
+    except (json.JSONDecodeError, KeyError) as exc:
+        logger.error(
+            "Reasoner JSON parse failed for %s — tripping circuit breaker: %s",
+            encounter_id,
+            exc,
+        )
+        compliance_flags.append("JSON_PARSE_FAILED")
+        decision = {}
+        triage_decision = TriageDecision(
+            level="Manual_Review_Required",
+            confidence=0.0,
+            reasoning_summary=f"Reasoner parse error: {type(exc).__name__}",
+            recommended_actions=["Manual clinical review required"],
+            model_used=response["model"],
+            routing_reason="parse_failure_fallback",
+        )
 
     audit_ref = await audit_writer.write_node_audit(
         encounter_id=encounter_id,
@@ -140,7 +156,7 @@ async def reasoner_node(
         duration_ms=response["duration_ms"],
     )
 
-    return {
+    result: dict[str, Any] = {
         "triage_decision": triage_decision,
         "compliance_flags": compliance_flags,
         "audit_trail": state.get("audit_trail", [])
@@ -156,3 +172,9 @@ async def reasoner_node(
             }
         ],
     }
+
+    if "JSON_PARSE_FAILED" in compliance_flags:
+        result["circuit_breaker_tripped"] = True
+        result["error"] = "Reasoner failed to parse LLM output"
+
+    return result

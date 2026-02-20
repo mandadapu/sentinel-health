@@ -1,6 +1,5 @@
 """Tests for AuditWriter class."""
 
-import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
@@ -89,9 +88,6 @@ class TestWriteNodeAudit:
     ):
         await audit_writer_no_sidecar.write_node_audit(**node_audit_kwargs)
 
-        # Give the fire-and-forget task a chance to run
-        await asyncio.sleep(0.05)
-
         mock_pubsub.publish_audit_event.assert_called_once()
         audit_doc = mock_pubsub.publish_audit_event.call_args[0][0]
         assert audit_doc["encounter_id"] == "enc-001"
@@ -160,15 +156,19 @@ class TestPublishTriageCompleted:
         assert "timestamp" in event
 
 
-class TestSafePublish:
+class TestPubSubFailureHandling:
     @pytest.mark.asyncio
-    async def test_swallows_errors(self, mock_firestore, mock_pubsub):
+    async def test_pubsub_failure_does_not_crash_write_node_audit(
+        self, mock_firestore, mock_pubsub, node_audit_kwargs
+    ):
         mock_pubsub.publish_audit_event = AsyncMock(
             side_effect=Exception("Pub/Sub unavailable")
         )
         writer = AuditWriter(mock_firestore, mock_pubsub)
 
-        # Should not raise
-        await writer._safe_publish({"encounter_id": "enc-001"})
+        # Should not raise — Firestore write succeeds, Pub/Sub failure is logged
+        doc_path = await writer.write_node_audit(**node_audit_kwargs)
 
+        assert doc_path == "test_sessions/enc-001/audit/extractor"
+        mock_firestore.write_audit.assert_called_once()
         mock_pubsub.publish_audit_event.assert_called_once()

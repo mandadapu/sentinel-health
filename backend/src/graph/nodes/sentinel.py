@@ -105,20 +105,34 @@ async def sentinel_node(
 
         break
 
-    validation = json.loads(response["content"])
+    try:
+        validation = json.loads(response["content"])
+        hallucination_score = validation["hallucination_score"]
+        confidence_score = validation["confidence_assessment"]
+        vitals_ok = validation["vitals_consistent"]
+        meds_ok = validation["medication_safe"]
+    except (json.JSONDecodeError, KeyError) as exc:
+        logger.error(
+            "Sentinel JSON parse failed for %s — tripping circuit breaker (fail-safe): %s",
+            encounter_id,
+            exc,
+        )
+        compliance_flags.append("JSON_PARSE_FAILED")
+        validation = {}
+        hallucination_score = 1.0
+        confidence_score = 0.0
+        vitals_ok = False
+        meds_ok = False
 
-    hallucination_score = validation["hallucination_score"]
-    confidence_score = validation["confidence_assessment"]
-    vitals_ok = validation["vitals_consistent"]
-    meds_ok = validation["medication_safe"]
-
-    # Circuit breaker: hallucination > 0.15 OR confidence < 0.85
+    # Circuit breaker: hallucination > threshold OR confidence < threshold
     circuit_breaker_tripped = (
         hallucination_score > settings.hallucination_threshold
         or confidence_score < settings.confidence_threshold
     )
 
     failure_reasons: list[str] = []
+    if "JSON_PARSE_FAILED" in compliance_flags:
+        failure_reasons.append("Sentinel validation parse error — manual review required")
     if hallucination_score > settings.hallucination_threshold:
         failure_reasons.append(
             f"Hallucination score {hallucination_score:.2f} exceeds "

@@ -1,6 +1,10 @@
+import logging
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -58,6 +62,19 @@ class Settings(BaseSettings):
         return f"sentinel-{self.env}-triage-completed"
 
     model_config = {"env_prefix": "", "case_sensitive": False}
+
+    @model_validator(mode="after")
+    def _validate_required_in_production(self) -> "Settings":
+        if self.env in ("staging", "prod"):
+            if not self.anthropic_api_key:
+                raise ValueError(
+                    f"ANTHROPIC_API_KEY is required in {self.env} environment"
+                )
+            if not self.voyage_api_key:
+                raise ValueError(
+                    f"VOYAGE_API_KEY is required in {self.env} environment"
+                )
+        return self
 
 
 @lru_cache
